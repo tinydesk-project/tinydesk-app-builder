@@ -1,0 +1,8 @@
+.test-output/
+__pycache__/
+*.pyc
+*.mpy
+*.tdapp
+.tdapp-*/
+dist/
+local-projects/

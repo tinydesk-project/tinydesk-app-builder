@@ -1,0 +1,3 @@
+Text imported from a file.
+Temperature: 123.4 °C
+Select a font and resize this text box in Inspector.

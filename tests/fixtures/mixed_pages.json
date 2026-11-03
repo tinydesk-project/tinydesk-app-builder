@@ -1,0 +1,330 @@
+{
+  "version": 1,
+  "name": "mixed_pages",
+  "screen": {
+    "w": 80,
+    "h": 25
+  },
+  "board": 2000,
+  "theme": "dark",
+  "windows": [
+    {
+      "id": "window_1",
+      "name": "win",
+      "title": "Device monitor",
+      "w": 62,
+      "h": 19,
+      "x": null,
+      "y": null,
+      "resizable": true,
+      "fullscreen": false,
+      "events": {},
+      "timers": [],
+      "widgets": [
+        {
+          "id": "main_label",
+          "type": "label",
+          "name": "main_label",
+          "x": 2,
+          "y": 1,
+          "w": 20,
+          "h": 4,
+          "text": "MAIN",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": []
+        },
+        {
+          "id": "main_canvas",
+          "type": "canvas",
+          "name": "main_canvas",
+          "x": 2,
+          "y": 3,
+          "w": 20,
+          "h": 3,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": 234,
+          "visible": true,
+          "events": {
+            "on_mouse": "mouse_0"
+          },
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "fill",
+              "x": 0,
+              "y": 0,
+              "w": 20,
+              "h": 3,
+              "ch": ".",
+              "fg": 115,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 1,
+              "y": 1,
+              "text": "MAIN",
+              "fg": 115,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "settings_label",
+          "type": "label",
+          "name": "settings_label",
+          "x": 2,
+          "y": 1,
+          "w": 20,
+          "h": 4,
+          "text": "SETTINGS",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": "settings",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": []
+        },
+        {
+          "id": "settings_canvas",
+          "type": "canvas",
+          "name": "settings_canvas",
+          "x": 2,
+          "y": 3,
+          "w": 20,
+          "h": 3,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": 234,
+          "visible": true,
+          "events": {
+            "on_mouse": "mouse_1"
+          },
+          "page": "settings",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "fill",
+              "x": 0,
+              "y": 0,
+              "w": 20,
+              "h": 3,
+              "ch": ".",
+              "fg": 214,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 1,
+              "y": 1,
+              "text": "SETTINGS",
+              "fg": 214,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "next_page",
+          "type": "button",
+          "name": "next_page",
+          "x": 2,
+          "y": 16,
+          "w": 18,
+          "h": 4,
+          "text": "Settings",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": null,
+          "goToPage": "settings",
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": []
+        },
+        {
+          "id": "extra_canvas",
+          "type": "canvas",
+          "name": "extra_canvas",
+          "x": 30,
+          "y": 3,
+          "w": 10,
+          "h": 2,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 0,
+              "y": 0,
+              "text": "extra_ca",
+              "fg": 81,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "all_canvas",
+          "type": "canvas",
+          "name": "all_canvas",
+          "x": 30,
+          "y": 8,
+          "w": 10,
+          "h": 2,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": null,
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 0,
+              "y": 0,
+              "text": "all_canv",
+              "fg": 81,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "hidden_canvas",
+          "type": "canvas",
+          "name": "hidden_canvas",
+          "x": 30,
+          "y": 12,
+          "w": 10,
+          "h": 2,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": false,
+          "events": {},
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 0,
+              "y": 0,
+              "text": "hidden_c",
+              "fg": 81,
+              "bg": 234
+            }
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "id": "main",
+          "name": "Main"
+        },
+        {
+          "id": "settings",
+          "name": "Settings"
+        },
+        {
+          "id": "info",
+          "name": "Info"
+        }
+      ],
+      "initialPage": "main",
+      "tabs": {
+        "enabled": true,
+        "row": -1
+      }
+    }
+  ],
+  "handlers": {
+    "mouse_0": {
+      "args": "cv, x, y, button, action",
+      "body": "main_label.text = \"mouse 0\""
+    },
+    "mouse_1": {
+      "args": "cv, x, y, button, action",
+      "body": "main_label.text = \"mouse 1\""
+    }
+  },
+  "options": {
+    "embedDesign": true,
+    "keepUnusedHandlers": false
+  },
+  "knownNames": []
+}

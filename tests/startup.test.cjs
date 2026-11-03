@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),TD=require('../core.js');
+const d=TD.initial(),w=d.windows[0];
+w.pages.push({id:'welcome',name:'Welcome'});
+d.startup={mode:'custom',page:'welcome',durationMs:2500,image:''};
+assert.deepEqual(TD.validate(d).errors,[]);
+let source=TD.generate(d);
+assert(source.includes('# --- tdui-editor layout begin ---\nwith _td_batch():\n'));
+assert(source.includes('_td_show_win("Welcome")'));
+assert(source.includes('win.after(2500, lambda: _td_show_win("Main"))'));
+assert.deepEqual(TD.parse(JSON.stringify(d)).startup,d.startup);
+d.startup.durationMs=0;assert(!TD.generate(d).includes('lambda: _td_show_win'));
+d.startup.page='missing';assert(TD.validate(d).errors.some(e=>e.includes('Custom startup page')));
+d.startup.page='welcome';d.startup.image='missing.ppm';assert(TD.validate(d).errors.some(e=>e.includes('artwork')));
+d.startup.image='';d.startup.mode='status';assert(TD.generate(d).includes('_td_show_win("Main")'));
+d.startup.durationMs=-1;assert.throws(()=>TD.parse(JSON.stringify(d)));
+console.log('PASS: custom entry page, optional transition, status default, persisted settings and invalid startup rejection.');

@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "name": "pixel_controls",
+  "screen": {
+    "w": 80,
+    "h": 25
+  },
+  "board": 2000,
+  "theme": "dark",
+  "windows": [
+    {
+      "id": "window_1",
+      "name": "win",
+      "title": "Pixel controls",
+      "w": 64,
+      "h": 20,
+      "x": null,
+      "y": null,
+      "resizable": true,
+      "fullscreen": false,
+      "events": {},
+      "timers": [],
+      "widgets": [
+        {
+          "id": "meter",
+          "type": "canvas",
+          "name": "meter",
+          "x": 0,
+          "y": 0,
+          "w": 64,
+          "h": 20,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "gradient",
+              "x": 0,
+              "y": 0,
+              "w": 128,
+              "h": 40,
+              "rgb1": [
+                0,
+                0,
+                80
+              ],
+              "rgb2": [
+                0,
+                120,
+                255
+              ],
+              "across": false
+            },
+            {
+              "op": "draw_text",
+              "x": 4,
+              "y": 2,
+              "text": "PIXEL CONTROLS",
+              "color": 231,
+              "bg": -2,
+              "scale": 1,
+              "small": true
+            },
+            {
+              "op": "bar",
+              "x": 4,
+              "y": 14,
+              "w": 80,
+              "h": 4,
+              "value": 65,
+              "maximum": 100,
+              "color": 40,
+              "track": 237,
+              "edge": 120,
+              "radius": 1
+            },
+            {
+              "op": "rect",
+              "x": 4,
+              "y": 22,
+              "w": 20,
+              "h": 6,
+              "color": 40,
+              "radius": 2,
+              "outline": false
+            },
+            {
+              "op": "circle",
+              "x": 32,
+              "y": 25,
+              "r": 3,
+              "color": 196,
+              "outline": false
+            },
+            {
+              "op": "line",
+              "x": 4,
+              "y": 30,
+              "x2": 100,
+              "y2": 30,
+              "color": 40
+            },
+            {
+              "op": "image",
+              "x": 90,
+              "y": 4,
+              "w": 8,
+              "h": 8,
+              "asset": {
+                "path": "/root/picture.ppm",
+                "w": 32,
+                "h": 32,
+                "key": null,
+                "dither": true
+              },
+              "src": null
+            },
+            {
+              "op": "nine",
+              "x": 100,
+              "y": 4,
+              "w": 20,
+              "h": 12,
+              "asset": {
+                "path": "/root/picture.ppm",
+                "w": 32,
+                "h": 32,
+                "key": null,
+                "dither": true
+              },
+              "src": null,
+              "border": 2
+            },
+            {
+              "op": "picture",
+              "x": 45,
+              "y": 9,
+              "w": 12,
+              "h": 4,
+              "asset": {
+                "path": "/root/picture.ppm",
+                "w": 32,
+                "h": 32,
+                "key": null,
+                "dither": true
+              },
+              "src": null,
+              "border": 2,
+              "text": "Picture",
+              "fg": 231,
+              "scale": 0
+            },
+            {
+              "op": "button",
+              "x": 2,
+              "y": 16,
+              "w": 14,
+              "h": 3,
+              "name": "apply_button",
+              "text": "Apply",
+              "color": 25,
+              "down": 18,
+              "rim": 32,
+              "fg": 231,
+              "radius": 2,
+              "scale": 0,
+              "on_click": "apply_value"
+            }
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "id": "main",
+          "name": "Main"
+        }
+      ],
+      "initialPage": "main",
+      "tabs": {
+        "enabled": false,
+        "row": -1
+      }
+    }
+  ],
+  "handlers": {
+    "apply_value": {
+      "args": "button",
+      "body": "meter.bar(4, 14, 80, 4, 25, edge=120, radius=1)"
+    }
+  },
+  "options": {
+    "embedDesign": true,
+    "keepUnusedHandlers": false
+  },
+  "knownNames": []
+}

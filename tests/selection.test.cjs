@@ -1,0 +1,14 @@
+'use strict';
+const assert=require('node:assert/strict'),S=require('../selection.js');
+assert.deepEqual(S.common([{op:'rect',x:0,y:0,w:20,h:10,color:25,radius:2},{op:'button',x:4,y:1,w:8,h:3,color:18,radius:2}]),[{key:'color',value:25,mixed:true},{key:'radius',value:2,mixed:false}]);
+assert.deepEqual(S.common([{text:'A',fg:231},{text:'B',bg:17}]),[{key:'text',value:'A',mixed:true}]);
+assert.deepEqual(S.common([{color:2},{fg:2}]),[]);
+assert.deepEqual(S.common([{type:'label',text:'A',checked:false,secret:false,value:65,fg:231},{type:'label',text:'B',checked:false,secret:false,value:65,fg:231}]).map(f=>f.key),['text','fg']);
+assert.deepEqual(S.bounds([{x:10,y:4,w:5,h:2},{x:20,y:8,w:10,h:6}]),{x:10,y:4,w:20,h:10});
+let b={x:10,y:4,w:20,h:10},t={x:4,y:2,w:40,h:20};
+assert.deepEqual(S.transform({op:'button',x:0,y:0,w:5,h:2,radius:3},{x:10,y:4,w:5,h:2},b,t,{x:10,y:4}),{op:'button',x:-6,y:-2,w:10,h:4,radius:6});
+assert.deepEqual(S.transform({op:'rect',x:0,y:0,w:10,h:4,color:25,radius:1},{x:10,y:4,w:5,h:2},b,t,{x:0,y:0}),{op:'rect',x:8,y:4,w:20,h:8,color:25,radius:2});
+assert.deepEqual(S.transform({op:'line',x:2,y:4,x2:8,y2:10},{x:11,y:6,w:3,h:3},b,t,{x:10,y:4}),{op:'line',x:-8,y:4,x2:4,y2:16});
+const font={op:'font_text',x:2,y:1,w:5,h:2,font:{path:'/root/f.tdfont'},text:'Hello'};
+const out=S.transform(font,{x:12,y:5,w:5,h:2},b,t,{x:10,y:4});assert.equal(out.w,10);assert.equal(out.h,4);assert.deepEqual(out.font,font.font);assert.equal(font.w,5);
+console.log('PASS: common/mixed attributes, heterogeneous selections, group bounds, coordinate units, offsets, lines, font boxes and immutable originals.');

@@ -1,0 +1,424 @@
+{
+  "version": 1,
+  "name": "six_page_hmi",
+  "screen": {
+    "w": 100,
+    "h": 30
+  },
+  "board": 32000,
+  "theme": "dark",
+  "windows": [
+    {
+      "id": "window_1",
+      "name": "win",
+      "title": "Process HMI",
+      "w": 100,
+      "h": 30,
+      "x": null,
+      "y": null,
+      "resizable": true,
+      "fullscreen": true,
+      "events": {},
+      "timers": [],
+      "widgets": [
+        {
+          "id": "overview_canvas",
+          "type": "canvas",
+          "name": "overview_canvas",
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 30,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": 252,
+          "bg": 234,
+          "visible": true,
+          "events": {},
+          "page": "overview",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 4,
+              "y": 2,
+              "text": "PROCESS / OVERVIEW",
+              "fg": 115,
+              "bg": 234
+            },
+            {
+              "op": "big",
+              "x": 8,
+              "y": 8,
+              "text": "1825",
+              "fg": 115,
+              "bg": 234,
+              "scale": 2,
+              "width": 6
+            },
+            {
+              "op": "put",
+              "x": 8,
+              "y": 16,
+              "text": "TOTAL UNITS",
+              "fg": 244,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 4,
+              "y": 25,
+              "text": "TinyDesk / cached canvas pages / PSRAM target",
+              "fg": 244,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "heat_canvas",
+          "type": "canvas",
+          "name": "heat_canvas",
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 30,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": 252,
+          "bg": 234,
+          "visible": true,
+          "events": {},
+          "page": "heat",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 4,
+              "y": 2,
+              "text": "PROCESS / HEAT",
+              "fg": 115,
+              "bg": 234
+            },
+            {
+              "op": "big",
+              "x": 8,
+              "y": 8,
+              "text": "-3.5",
+              "fg": 214,
+              "bg": 234,
+              "scale": 2,
+              "width": 6
+            },
+            {
+              "op": "put",
+              "x": 8,
+              "y": 16,
+              "text": "TEMPERATURE C",
+              "fg": 244,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 4,
+              "y": 25,
+              "text": "TinyDesk / cached canvas pages / PSRAM target",
+              "fg": 244,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "flow_canvas",
+          "type": "canvas",
+          "name": "flow_canvas",
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 30,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": 252,
+          "bg": 234,
+          "visible": true,
+          "events": {},
+          "page": "flow",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 4,
+              "y": 2,
+              "text": "PROCESS / FLOW",
+              "fg": 115,
+              "bg": 234
+            },
+            {
+              "op": "big",
+              "x": 8,
+              "y": 8,
+              "text": "12:30",
+              "fg": 81,
+              "bg": 234,
+              "scale": 2,
+              "width": 6
+            },
+            {
+              "op": "put",
+              "x": 8,
+              "y": 16,
+              "text": "FLOW / MIN",
+              "fg": 244,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 4,
+              "y": 25,
+              "text": "TinyDesk / cached canvas pages / PSRAM target",
+              "fg": 244,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "power_canvas",
+          "type": "canvas",
+          "name": "power_canvas",
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 30,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": 252,
+          "bg": 234,
+          "visible": true,
+          "events": {},
+          "page": "power",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 4,
+              "y": 2,
+              "text": "PROCESS / POWER",
+              "fg": 115,
+              "bg": 234
+            },
+            {
+              "op": "big",
+              "x": 8,
+              "y": 8,
+              "text": "98.2",
+              "fg": 220,
+              "bg": 234,
+              "scale": 2,
+              "width": 6
+            },
+            {
+              "op": "put",
+              "x": 8,
+              "y": 16,
+              "text": "POWER %",
+              "fg": 244,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 4,
+              "y": 25,
+              "text": "TinyDesk / cached canvas pages / PSRAM target",
+              "fg": 244,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "alarms_canvas",
+          "type": "canvas",
+          "name": "alarms_canvas",
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 30,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": 252,
+          "bg": 234,
+          "visible": true,
+          "events": {},
+          "page": "alarms",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 4,
+              "y": 2,
+              "text": "PROCESS / ALARMS",
+              "fg": 115,
+              "bg": 234
+            },
+            {
+              "op": "big",
+              "x": 8,
+              "y": 8,
+              "text": "0",
+              "fg": 203,
+              "bg": 234,
+              "scale": 2,
+              "width": 6
+            },
+            {
+              "op": "put",
+              "x": 8,
+              "y": 16,
+              "text": "ACTIVE ALARMS",
+              "fg": 244,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 4,
+              "y": 25,
+              "text": "TinyDesk / cached canvas pages / PSRAM target",
+              "fg": 244,
+              "bg": 234
+            }
+          ]
+        },
+        {
+          "id": "setup_canvas",
+          "type": "canvas",
+          "name": "setup_canvas",
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 30,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": 252,
+          "bg": 234,
+          "visible": true,
+          "events": {},
+          "page": "setup",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 4,
+              "y": 2,
+              "text": "PROCESS / SETUP",
+              "fg": 115,
+              "bg": 234
+            },
+            {
+              "op": "big",
+              "x": 8,
+              "y": 8,
+              "text": "t",
+              "fg": 147,
+              "bg": 234,
+              "scale": 2,
+              "width": 6
+            },
+            {
+              "op": "put",
+              "x": 8,
+              "y": 16,
+              "text": "CONTROL MODE",
+              "fg": 244,
+              "bg": 234
+            },
+            {
+              "op": "put",
+              "x": 4,
+              "y": 25,
+              "text": "TinyDesk / cached canvas pages / PSRAM target",
+              "fg": 244,
+              "bg": 234
+            }
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "id": "overview",
+          "name": "Overview"
+        },
+        {
+          "id": "heat",
+          "name": "Heat"
+        },
+        {
+          "id": "flow",
+          "name": "Flow"
+        },
+        {
+          "id": "power",
+          "name": "Power"
+        },
+        {
+          "id": "alarms",
+          "name": "Alarms"
+        },
+        {
+          "id": "setup",
+          "name": "Setup"
+        }
+      ],
+      "initialPage": "overview",
+      "tabs": {
+        "enabled": true,
+        "row": -1
+      }
+    }
+  ],
+  "handlers": {},
+  "options": {
+    "embedDesign": true,
+    "keepUnusedHandlers": false
+  },
+  "knownNames": []
+}

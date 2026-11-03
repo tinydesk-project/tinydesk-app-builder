@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict'),F=require('../simulation-frame.js');
+const bytes=new Uint8Array(24),view=new DataView(bytes.buffer);bytes.set([84,68,67,70,1]);view.setUint16(6,2,true);view.setUint16(8,1,true);
+view.setUint16(16,0x2588,true);bytes[18]=231;bytes[19]=25;
+view.setUint16(20,32,true);bytes[22]=231;bytes[23]=17;
+const frame=F.decode(bytes),rects=[],ctx={save(){},restore(){},fillRect(x,y,w,h){rects.push({x,y,w,h,color:this.fillStyle});}};
+F.paint(ctx,frame,10,20,n=>String(n));
+assert(rects.some(r=>r.x===0&&r.y===0&&r.w===10&&r.h===20&&r.color==='25'),'Blue panel background must be present');
+assert.equal(rects.filter(r=>r.color==='231').reduce((sum,r)=>sum+r.w*r.h,0),200,'Large-value full block must remain visible');
+assert(rects.some(r=>r.x===10&&r.w===10&&r.h===20&&r.color==='17'),'Blank cells must retain their background');
+assert.throws(()=>F.decode(bytes.slice(1)),/Invalid native/);
+bytes[4]=9;assert.throws(()=>F.decode(bytes),/Invalid native/);
+console.log('PASS: native frame validation, panel backgrounds, exact large-value block geometry and blank-cell colors.');

@@ -1,0 +1,64 @@
+/* Palette shared with https://tinydesk-project.github.io/. */
+:root{--accent:#0e7c86;--accent-ink:#fff;--accent-soft:#e6f2f3;--surface:#fff;--panel:#f5f7f8;--workspace:#edf0f3;--code-surface:#f1f4f6;--text:#2c3e50;--muted:#5b6770;--line:#e1e6e9;--green:var(--accent);--grid:#cbd2da;color:var(--text);background:var(--surface);font-family:"IBM Plex Sans","Segoe UI",sans-serif}
+:root[data-ui-theme=dark]{--accent:#5fafff;--accent-ink:#0b1f35;--accent-soft:#21334a;--surface:#16181b;--panel:#1c1f23;--workspace:#131519;--code-surface:#23272c;--text:#dfe3e7;--muted:#9aa4ad;--line:#30353b;--grid:#303843;color:var(--text);background:var(--surface)}
+:root[data-ui-theme] header,:root[data-ui-theme] footer{background:var(--surface);color:var(--text)}
+:root[data-ui-theme] .subbar,:root[data-ui-theme] .left,:root[data-ui-theme] .right,:root[data-ui-theme] .canvas-toolbar,:root[data-ui-theme] .code-heading,:root[data-ui-theme] #pageTabs{background:var(--panel)}
+:root[data-ui-theme] .workspace{background:var(--workspace)}
+:root[data-ui-theme] #stage{background-image:radial-gradient(var(--grid) .75px,transparent .75px)}
+:root[data-ui-theme] button,:root[data-ui-theme] select{background:var(--surface);color:var(--text);border-color:var(--line)}
+:root[data-ui-theme] button:hover{background:var(--accent-soft);border-color:var(--accent)}
+:root[data-ui-theme] button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+:root[data-ui-theme] button:focus-visible,:root[data-ui-theme] select:focus-visible,:root[data-ui-theme] input:focus-visible,:root[data-ui-theme] textarea:focus-visible,:root[data-ui-theme] canvas:focus-visible,:root[data-ui-theme] .splitter:focus-visible{outline-color:var(--accent)}
+:root[data-ui-theme] .brand,:root[data-ui-theme] .object-name,:root[data-ui-theme] #selectionInfo,:root[data-ui-theme] .project input{color:var(--text)}
+:root[data-ui-theme] .logo{width:36px;height:36px;object-fit:contain;background:transparent;border-radius:7px}
+:root[data-ui-theme] .brand b,:root[data-ui-theme] .breadcrumb,:root[data-ui-theme] .slash,:root[data-ui-theme] .tag,:root[data-ui-theme] .subsettings label,:root[data-ui-theme] .saved,:root[data-ui-theme] #help,:root[data-ui-theme] .section-heading,:root[data-ui-theme] .hint,:root[data-ui-theme] .mini-icon,:root[data-ui-theme] .screen-caption,:root[data-ui-theme] .screen-foot,:root[data-ui-theme] .object-desc,:root[data-ui-theme] .group-title,:root[data-ui-theme] .field,:root[data-ui-theme] .field-hint,:root[data-ui-theme] .component,:root[data-ui-theme] .layer,:root[data-ui-theme] .layer-icon,:root[data-ui-theme] .left-bottom,:root[data-ui-theme] .offline,:root[data-ui-theme] footer button{color:var(--muted)}
+:root[data-ui-theme] .layer:hover,:root[data-ui-theme] .layer.selected{background:var(--accent-soft);color:var(--text);border-left-color:var(--accent)}
+:root[data-ui-theme] .active{background:var(--accent-soft)!important;color:var(--accent)!important}
+:root[data-ui-theme] .inspector-tabs button{background:transparent!important;color:var(--muted)}
+:root[data-ui-theme] .inspector-tabs button.active{border-bottom-color:var(--accent)}
+:root[data-ui-theme] .field input,:root[data-ui-theme] .field select,:root[data-ui-theme] .field textarea,:root[data-ui-theme] .pixel-section textarea,:root[data-ui-theme] #handlerBody,:root[data-ui-theme] #copyFallback{background:var(--surface);color:var(--text);border-color:var(--line)}
+:root[data-ui-theme] #codeWrap,:root[data-ui-theme] .event-card,:root[data-ui-theme] .keyboard{background:var(--code-surface)}
+:root[data-ui-theme] #code{color:var(--text)}
+:root[data-ui-theme] #code .comment,:root[data-ui-theme] #code .code-line:before,:root[data-ui-theme] #lineCount{color:var(--muted)}
+:root[data-ui-theme] .paint-notice,:root[data-ui-theme] .element-palette{background:var(--accent-soft);color:var(--text)}
+:root[data-ui-theme] .outline-page{background:transparent;color:var(--muted)}
+:root[data-ui-theme] .outline-page.current-page{color:var(--accent)}
+:root[data-ui-theme] dialog,:root[data-ui-theme] #issues{background:var(--panel);color:var(--text);border-color:var(--line)}
+:root[data-ui-theme] #modalBody p{color:var(--text)}
+:root[data-ui-theme] dialog::backdrop{background:#03070cb3}
+:root[data-ui-theme] #toast{background:var(--text);color:var(--surface)}
+:root[data-ui-theme] .live-dot{background:var(--accent)}
+.left-tabs{display:flex;position:sticky;top:0;z-index:2;border-bottom:1px solid var(--line);background:var(--panel);padding:6px 8px;gap:4px}
+.left-tabs button{flex:1;min-width:0;border:0;font-weight:600;font-size:10px;padding:8px 3px}
+.left-tabs button[aria-selected=true]{color:var(--accent)!important;background:var(--accent-soft)!important}
+#assetCount{font:10px Consolas,monospace;margin-left:4px}
+#componentContent[hidden],#assetsContent[hidden]{display:none}
+#componentsPane{position:relative}
+.left.asset-mode .left-content{grid-template-rows:minmax(0,1fr)}
+.left.asset-mode #componentsResize,.left.asset-mode #outlinePane{display:none}
+.left.outline-mode .left-content{grid-template-rows:auto 0 minmax(0,1fr)}
+.left.outline-mode #componentsResize{visibility:hidden}
+.asset-toolbar{display:flex;gap:6px;padding:12px 10px 4px}
+.asset-toolbar input{min-width:0;flex:1;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--text);padding:7px}
+.asset-toolbar button{padding:5px 9px}
+.asset-controls{position:sticky;top:40px;z-index:1;background:var(--panel)}
+.asset-help{font-size:11px;color:var(--muted);line-height:1.6;padding:0 12px;margin:8px 0;overflow-wrap:anywhere}
+.asset-row{display:flex;width:calc(100% - 12px);gap:9px;align-items:center;margin:4px 6px;padding:9px;text-align:left;min-width:0}
+.asset-row.selected{border-color:var(--accent);background:var(--accent-soft)!important}
+.asset-thumb{flex:none;width:36px;height:36px;display:grid;place-items:center;background:var(--code-surface);color:var(--muted);border:1px solid var(--line);border-radius:4px;font:10px Consolas,monospace;overflow:hidden}
+.asset-thumb img{width:100%;height:100%;object-fit:contain}
+.asset-summary{min-width:0;display:flex;flex-direction:column;gap:4px}
+.asset-summary strong{font:11px Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.asset-summary small,.asset-status{font-size:9px;color:var(--muted)}
+.asset-status.external{color:#a55a12}
+:root[data-ui-theme=dark] .asset-status.external{color:#edbc70}
+.asset-status.embedded{color:var(--accent)}
+.asset-name{overflow-wrap:anywhere}
+#assetPreview{border-radius:6px;background:repeating-conic-gradient(var(--surface) 0% 25%,var(--line) 0% 50%) 0 / 12px 12px}
+#assetPreview img{display:block;width:100%;max-height:190px;object-fit:contain;border:1px solid var(--line);border-radius:6px}
+.asset-actions{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0}
+.asset-use{display:block;width:100%;text-align:left;margin:5px 0;overflow-wrap:anywhere;font-size:11px}
+/* ANSI colors belong to the simulated device, independently of editor theme. */
+#simulationTerminal{color-scheme:only light;forced-color-adjust:none;isolation:isolate;position:relative}
+.native-frame .xterm{opacity:0}
+.native-frame .simulation-cell-layer{position:absolute;left:8px;top:8px;z-index:2;pointer-events:none}

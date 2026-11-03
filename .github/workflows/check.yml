@@ -1,0 +1,22 @@
+name: Studio compatibility
+on: [push, pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: node tests/core.test.cjs
+      - run: node tests/pixels.test.cjs
+      - run: node tests/resources.test.cjs
+      - run: node tests/simulation-frame.test.cjs
+      - run: node tests/geometry.test.cjs
+      - run: python tests/verify_export.py
+      - run: python tests/verify_pixels.py
+      - run: python tests/verify_controls.py
+      - run: python tests/verify_bridge.py

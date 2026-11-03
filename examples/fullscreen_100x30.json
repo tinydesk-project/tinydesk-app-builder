@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "name": "fullscreen",
+  "screen": {
+    "w": 100,
+    "h": 30
+  },
+  "board": 32000,
+  "theme": "dark",
+  "windows": [
+    {
+      "id": "window_1",
+      "name": "win",
+      "title": "Device monitor",
+      "w": 100,
+      "h": 30,
+      "x": null,
+      "y": null,
+      "resizable": true,
+      "fullscreen": true,
+      "events": {},
+      "timers": [],
+      "widgets": [
+        {
+          "id": "display",
+          "type": "canvas",
+          "name": "display",
+          "x": 0,
+          "y": 0,
+          "w": 100,
+          "h": 30,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "put",
+              "x": 1,
+              "y": 1,
+              "text": "FULL SCREEN",
+              "fg": 115,
+              "bg": 234
+            }
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "id": "main",
+          "name": "Main"
+        }
+      ],
+      "initialPage": "main",
+      "tabs": {
+        "enabled": false,
+        "row": -1
+      }
+    }
+  ],
+  "handlers": {},
+  "options": {
+    "embedDesign": true,
+    "keepUnusedHandlers": false
+  },
+  "knownNames": []
+}

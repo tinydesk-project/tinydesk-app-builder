@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('node:assert/strict'),F=require('../fonts.js'),T=require('../core.js'),R=require('../resources.js');
+const bits=new Uint8Array([0xf0,0x80,0xf0]);
+const data=F.encode({height:3,ascent:2,size:8,bpp:4,glyphs:[{cp:32,w:0,left:0,advance:2,bits:new Uint8Array()},{cp:63,w:1,left:0,advance:2,bits},{cp:176,w:1,left:0,advance:2,bits}]}),f=F.decode(data);
+assert.equal(f.glyphs.size,3);assert.equal(f.size,8);
+assert.deepEqual(F.measure(f,'? ? ',4,true),{w:4,h:6});
+assert.deepEqual(F.measure(f,'°€',0,false),{w:4,h:3});
+assert.deepEqual(F.measure(f,'?\n?\n',0,false),{w:2,h:9});
+for(let i=0;i<data.length;i++)assert.throws(()=>F.decode(data.subarray(0,i)));
+const bad=data.slice();bad[64]=63;assert.throws(()=>F.decode(bad));
+const d=T.initial(),cv=T.widget('canvas','text_canvas',0,0);cv.w=30;cv.h=8;d.board=32000;d.windows[0].widgets=[cv];
+cv.paint=[{op:'font_text',...T.clone(T.Pixels.defaults.font_text),name:'reading',text:'123 °C',font:{path:'/root/fonts/display.tdfont'}},
+ {op:'button',...T.clone(T.Pixels.defaults.button),name:'action',y:4,font:{path:'/root/fonts/display.tdfont'}}];
+d.assets=[{name:'display.tdfont',data:Buffer.from(data).toString('base64'),mime:'application/x-tinydesk-font'}];
+assert.deepEqual(T.validate(d).errors,[]);assert.deepEqual(T.parse(JSON.stringify(d)),T.normalize(T.clone(d)));
+assert.equal(R.required(d).get('display.tdfont'),'/root/fonts/display.tdfont');
+assert.equal(R.inventory(d)[0].kind,'font');assert.equal(R.inventory(d)[0].uses.length,2);
+const code=T.generate(d,{bundle:true});assert.equal((code.match(/= tdui.Font.load/g)||[]).length,1);assert(code.includes('_td_package_dir + "display.tdfont"'));assert(code.includes('font=_td_font_0'));assert(!code.includes('"sourceAsset":'));
+assert(code.includes('hasattr(tdui, "Font")'));assert(code.includes('self.values[\'font\'] = font'));
+const op=cv.paint[0];op.align='invalid';assert(T.validate(d).errors.some(e=>e.includes('alignment')));
+console.log('PASS: portable font format, malformed files, Unicode fallback, multiline wrapping, resources, named fields, buttons and package-relative export.');

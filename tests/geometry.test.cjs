@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),G=require('../geometry.js');
+const button={op:'button',x:10,y:5,w:20,h:3};
+const b={x:10,y:5,w:20,h:3};
+assert.equal(G.handles(button,b).length,8);
+assert.deepEqual(G.resize(button,b,'se',4,2,80,24),{...button,w:24,h:5});
+assert.deepEqual(G.resize(button,b,'nw',-3,-2,80,24),{...button,x:7,y:3,w:23,h:5});
+assert.deepEqual(G.resize(button,b,'se',100,100,80,24),{...button,w:70,h:19});
+assert.deepEqual(G.resize(button,b,'nw',100,100,80,24),{...button,x:29,y:7,w:1,h:1});
+const pixel={op:'rect',x:4,y:6,w:20,h:10};
+assert.deepEqual(G.resize(pixel,{x:2,y:3,w:10,h:5},'e',.5,0,80,24),{...pixel,w:21});
+const line={op:'line',x:2,y:4,x2:20,y2:12};
+assert.deepEqual(G.resize(line,{},'end',2,-1,80,24),{...line,x2:24,y2:10});
+assert.equal(G.handles({op:'put'},{}).length,0);
+const circle=G.resize({op:'circle',x:10,y:10,r:4},{x:3,y:3,w:4.5,h:4.5},'se',2,2,80,24);
+assert.equal(circle.r,6);assert.equal(circle.x,12);assert.equal(circle.y,12);
+console.log('PASS: eight resize handles, anchor preservation, snapping, bounds, line endpoints and circles.');

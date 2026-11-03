@@ -1,0 +1,281 @@
+{
+  "version": 1,
+  "name": "button_events",
+  "screen": {
+    "w": 80,
+    "h": 24
+  },
+  "board": 32000,
+  "theme": "dark",
+  "windows": [
+    {
+      "id": "window_1",
+      "name": "win",
+      "title": "Button events and corners",
+      "w": 74,
+      "h": 21,
+      "x": null,
+      "y": null,
+      "resizable": true,
+      "fullscreen": false,
+      "events": {},
+      "timers": [],
+      "widgets": [
+        {
+          "id": "controls",
+          "type": "canvas",
+          "name": "controls",
+          "x": 0,
+          "y": 0,
+          "w": 74,
+          "h": 17,
+          "text": "",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": [
+            {
+              "op": "fill",
+              "x": 0,
+              "y": 0,
+              "w": 74,
+              "h": 17,
+              "ch": " ",
+              "fg": 231,
+              "bg": 25
+            },
+            {
+              "op": "rect",
+              "x": 0,
+              "y": 0,
+              "w": 48,
+              "h": 34,
+              "color": 17,
+              "radius": 0,
+              "outline": false
+            },
+            {
+              "op": "button",
+              "x": 3,
+              "y": 3,
+              "w": 18,
+              "h": 4,
+              "name": "button_0",
+              "text": "Hold / release",
+              "color": 25,
+              "down": 18,
+              "rim": 32,
+              "fg": 231,
+              "radius": 2,
+              "scale": 0,
+              "on_click": "clicked",
+              "asset": {
+                "path": "/root/ui_skin.ppm",
+                "w": 256,
+                "h": 128,
+                "key": [
+                  255,
+                  0,
+                  255
+                ],
+                "dither": false
+              },
+              "src": [
+                0,
+                0,
+                64,
+                64
+              ],
+              "src_down": [
+                64,
+                0,
+                64,
+                64
+              ],
+              "border": 16,
+              "on_press": "pressed",
+              "on_release": "released",
+              "on_cancel": "cancelled"
+            },
+            {
+              "op": "rect",
+              "x": 48,
+              "y": 0,
+              "w": 48,
+              "h": 34,
+              "color": 25,
+              "radius": 0,
+              "outline": false
+            },
+            {
+              "op": "button",
+              "x": 27,
+              "y": 3,
+              "w": 18,
+              "h": 4,
+              "name": "button_1",
+              "text": "Hold / release",
+              "color": 25,
+              "down": 18,
+              "rim": 32,
+              "fg": 231,
+              "radius": 2,
+              "scale": 0,
+              "on_click": "clicked",
+              "asset": {
+                "path": "/root/ui_skin.ppm",
+                "w": 256,
+                "h": 128,
+                "key": [
+                  255,
+                  0,
+                  255
+                ],
+                "dither": false
+              },
+              "src": [
+                0,
+                0,
+                64,
+                64
+              ],
+              "src_down": [
+                64,
+                0,
+                64,
+                64
+              ],
+              "border": 16,
+              "on_press": "pressed",
+              "on_release": "released",
+              "on_cancel": "cancelled"
+            },
+            {
+              "op": "rect",
+              "x": 96,
+              "y": 0,
+              "w": 48,
+              "h": 34,
+              "color": 240,
+              "radius": 0,
+              "outline": false
+            },
+            {
+              "op": "button",
+              "x": 51,
+              "y": 3,
+              "w": 18,
+              "h": 4,
+              "name": "button_2",
+              "text": "Hold / release",
+              "color": 25,
+              "down": 18,
+              "rim": 32,
+              "fg": 231,
+              "radius": 2,
+              "scale": 0,
+              "on_click": "clicked",
+              "asset": {
+                "path": "/root/ui_skin.ppm",
+                "w": 256,
+                "h": 128,
+                "key": [
+                  255,
+                  0,
+                  255
+                ],
+                "dither": false
+              },
+              "src": [
+                0,
+                0,
+                64,
+                64
+              ],
+              "src_down": [
+                64,
+                0,
+                64,
+                64
+              ],
+              "border": 16,
+              "on_press": "pressed",
+              "on_release": "released",
+              "on_cancel": "cancelled"
+            }
+          ]
+        },
+        {
+          "id": "status",
+          "type": "label",
+          "name": "status",
+          "x": 2,
+          "y": 18,
+          "w": 68,
+          "h": 4,
+          "text": "Press; release inside to click, outside to cancel.",
+          "checked": false,
+          "secret": false,
+          "value": 65,
+          "fg": -1,
+          "bg": -1,
+          "visible": true,
+          "events": {},
+          "page": "main",
+          "goToPage": null,
+          "items": [
+            "First item",
+            "Second item",
+            "Third item"
+          ],
+          "paint": []
+        }
+      ],
+      "pages": [
+        {
+          "id": "main",
+          "name": "Main"
+        }
+      ],
+      "initialPage": "main",
+      "tabs": {
+        "enabled": false,
+        "row": -1
+      }
+    }
+  ],
+  "handlers": {
+    "pressed": {
+      "args": "button",
+      "body": "status.text = \"PRESS: button held\""
+    },
+    "released": {
+      "args": "button",
+      "body": "status.text = \"RELEASE\""
+    },
+    "clicked": {
+      "args": "button",
+      "body": "status.text = \"CLICK: released inside\""
+    },
+    "cancelled": {
+      "args": "button",
+      "body": "status.text = \"CANCEL: released outside\""
+    }
+  },
+  "options": {
+    "embedDesign": true,
+    "keepUnusedHandlers": false
+  },
+  "knownNames": []
+}
