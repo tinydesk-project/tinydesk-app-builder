@@ -1,11 +1,11 @@
 # Compatibility contract
 
-App Builder 0.5.0 records independent versions rather than coupling apps to the
+App Builder 0.6.0 records independent versions rather than coupling apps to the
 editor release:
 
 | Contract | Current | Meaning |
 | --- | --- | --- |
-| App Builder | 0.5.0 | Editor/generator release |
+| App Builder | 0.6.0 | Editor/generator release |
 | Project schema | 1 | Editable JSON structure; existing schema-1 fixtures remain supported |
 | Application | User-controlled semantic version | Version of your design/behavior |
 | TDAPP package | 1 | Binary container and checked-file manifest |
@@ -17,6 +17,14 @@ An exported application contains its generated layout, field helpers and
 callbacks. It runs without Studio or the simulation service. Existing
 `.py`/`.mpy` workflows remain supported. Studio updates do not silently
 rewrite an app already installed on a board.
+
+Portable bytecode remains the default. Optional native exports record
+`project.compilation` and `runtime.native` with CPU architecture, ABI 6.3 and
+the root requirement. The TDAPP bootstrap remains portable and rejects a wrong
+CPU/ABI before extraction. Native dependencies are preserved without executing
+them during import; mixing Xtensa and RISC-V modules in one app is rejected.
+ESP32/S3/CrowPanel use `xtensawin`; C6 uses `rv32imc` without optional ISA flags.
+This release adds no arbitrary raw-binary loader or direct C API linker.
 
 The native cell snapshot and its browser renderer are development tools.
 They do not change the firmware drawing API or a packaged application's

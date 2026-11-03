@@ -48,6 +48,7 @@ function canvasGroups(w){
 function usage(d){return {windows:d.windows.length,widgets:d.windows.reduce((n,w)=>n+pageTabs(w,d).length+w.widgets.reduce((n,o)=>n+(o.type==='list'?2:1),0),0),cells:d.windows.reduce((n,w)=>n+canvasGroups(w).reduce((n,g)=>n+g.w*g.h*g.pages,0),0),pixels:Pixels.pixelBytes(d,canvasGroups)};}
 function validate(d){normalize(d);const errors=[],warnings=[],names=new Set(['tdui','time','machine','asyncio','show_page','canvas_page','_TD_PARK','_TD_PAGES']);const error=s=>errors.push(s);const number=(n,min,max)=>Number.isInteger(n)&&n>=min&&n<=max;const name=(n)=>{if(!identifier(n)||n.length>32)error('Invalid Python identifier (use at most 32 ASCII characters): '+n);if(n.startsWith('_td_'))error('Names beginning _td_ are reserved for page helpers: '+n);if(names.has(n))error('Duplicate or reserved name: '+n);names.add(n);};const text=(s,max,label)=>{if(bytes(s)>max)error(label+' exceeds '+max+' UTF-8 bytes.');if(/[\0\r\n]/.test(s))error(label+' must be a single line without NUL.');};
 if(!number(d.screen.w,20,300)||!number(d.screen.h,5,150))error('Screen must be 20–300 columns × 5–150 rows.');
+if(d.compilation&&(!['bytecode','native'].includes(d.compilation.mode)||d.compilation.mode==='native'&&!['xtensawin','rv32imc'].includes(d.compilation.arch)))error('Choose a supported compiled app target.');
 if(d.application&&!/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/.test(d.application.version))error('Application version must use major.minor.patch, for example 1.0.0.');
 if(d.startup){
  const s=d.startup;
@@ -358,13 +359,13 @@ const CONTROL_RUNTIME=`
 _td_controls = []
 _td_control_held = None
 
-def _td_gauge(cv, x, y, w, h, value, maximum=100, color=220, track=244, bg=17, gradient=None):
+def _td_gauge(cv, x, y, w, h, value, maximum=100, color=220, track=244, bg=17, gradient=None, radius=0):
     points = ((-9,5),(-10,2),(-10,-2),(-8,-6),(-5,-9),(0,-10),(5,-9),(8,-6),(10,-2),(10,2),(9,5))
     rx = max(1, min(w // 2 - 1, h - 7))
     ry = max(1, rx // 2)  # Terminal pixels are twice as tall as wide.
     cx, cy = x + w // 2, y + ry
     with cv.batch():
-        cv.rect(x, y, w, h, bg, gradient=gradient)
+        cv.rect(x, y, w, h, bg, radius=radius, gradient=gradient)
         for i in range(10):
             a, b = points[i], points[i+1]
             cv.line(cx+a[0]*rx//10, cy+a[1]*ry//10, cx+b[0]*rx//10, cy+b[1]*ry//10, track)
@@ -374,11 +375,11 @@ def _td_gauge(cv, x, y, w, h, value, maximum=100, color=220, track=244, bg=17, g
         a, b = points[index], points[index+1]
         px, py = a[0]*10+(b[0]-a[0])*fraction, a[1]*10+(b[1]-a[1])*fraction
         cv.line(cx, cy, cx+px*rx//100, cy+py*ry//100, color)
-        cv.draw_text(x+1, y+h-5, str(value), color, bg=tdui.CLEAR if gradient else bg, small=True)
+        cv.draw_text(x+1, y+h-5, str(value), color, bg=tdui.CLEAR, small=True)
 
-def _td_slider(cv, x, y, w, h, value, maximum=100, color=220, track=17, knob=231, gradient=None):
+def _td_slider(cv, x, y, w, h, value, maximum=100, color=220, track=17, knob=231, gradient=None, radius=0):
     with cv.batch():
-        cv.rect(x*2, y*2, w*2, h*2, track, gradient=gradient)
+        cv.rect(x*2, y*2, w*2, h*2, track, radius=radius, gradient=gradient)
         cv.line(x*2, y*2+h, (x+w)*2-1, y*2+h, color)
         at = max(0,min(w-1,int(value)*(w-1)//maximum))
         cv.rect((x+at)*2, y*2, 2, h*2, knob, radius=1)
@@ -559,6 +560,7 @@ function parse(source){
     const record=o=>o!==null&&typeof o==='object'&&!Array.isArray(o);
     const int=(n,min,max)=>Number.isInteger(n)&&n>=min&&n<=max;
     if(!record(d)||d.version!==1||!record(d.screen)||!Array.isArray(d.windows)||!record(d.handlers)||!['dark','classic'].includes(d.theme)||![2000,8000,32000].includes(d.board)||typeof d.name!=='string')bad('Unsupported or incomplete design format.');
+    if(d.compilation!==undefined&&(!record(d.compilation)||!['bytecode','native'].includes(d.compilation.mode)||d.compilation.mode==='native'&&!['xtensawin','rv32imc'].includes(d.compilation.arch)))bad('Invalid compilation target.');
     if(d.startup!==undefined&&(!record(d.startup)||!['status','custom'].includes(d.startup.mode)||!int(d.startup.durationMs,0,600000)||typeof d.startup.page!=='string'||typeof d.startup.image!=='string'||/[\\/:\0]/.test(d.startup.image)))bad('Invalid startup screen settings.');
     for(const key of ['provenance','application'])if(d[key]!==undefined&&(!record(d[key])||Object.values(d[key]).some(v=>typeof v!=='string'||v.length>128||/[\0\r\n]/.test(v))))bad('Invalid project version metadata.');
     for(const key of ['assets','binaryDependencies'])if(d[key]!==undefined&&(!Array.isArray(d[key])||d[key].length>128||d[key].some(a=>!record(a)||typeof a.name!=='string'||a.name.length>64||!a.name||/[\\/:\0]/.test(a.name)||typeof a.data!=='string'||a.data.length>6000000||!/^[A-Za-z0-9+/]*={0,2}$/.test(a.data))))bad('Invalid embedded project resource.');

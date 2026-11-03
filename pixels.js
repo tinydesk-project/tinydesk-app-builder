@@ -92,8 +92,8 @@ function args(p,image,font=null){
     const a=(value,key)=>({value,key}),xy=[a(p.x),a(p.y)],box=[...xy,a(p.w),a(p.h)],g=p.gradient?[a(p.gradient,'gradient')]:[];
     switch(p.op){
     case 'font_text':return [font,...box,a(p.text),...['fg','bg','align','valign','wrap'].map(k=>a(p[k],k))];
-    case 'gauge':return [...box,...['value','maximum','color','track','bg'].map(k=>a(p[k],k)),...g];
-    case 'slider':return [...box,...['value','maximum','color','track','knob'].map(k=>a(p[k],k)),...(p.on_change?['on_change='+p.on_change]:[]),...g];
+    case 'gauge':return [...box,...['value','maximum','color','track','bg'].map(k=>a(p[k],k)),...g,...(p.radius!==undefined?[a(p.radius,'radius')]:[])];
+    case 'slider':return [...box,...['value','maximum','color','track','knob'].map(k=>a(p[k],k)),...(p.on_change?['on_change='+p.on_change]:[]),...g,...(p.radius!==undefined?[a(p.radius,'radius')]:[])];
     case 'rect':return [...box,a(p.color),a(p.radius,'radius'),a(p.outline,'outline'),...g];
     case 'line':return [...xy,a(p.x2),a(p.y2),a(p.color)];
     case 'circle':return [...xy,a(p.r),a(p.color),a(p.outline,'outline'),...g];
@@ -127,7 +127,7 @@ function preview(ctx,p,x,y,color,assetImage=null){
         ctx.fillText(text,(p.x+p.w/2)*10,(p.y+p.h/2)*20,p.w*10);ctx.restore();
     };
     const round=(px,py,w,h,r,c,outline=false)=>{
-        r=Math.min(r,w/2,h/2);ctx.fillStyle=p.gradient&&(p.op==='slider'?c===p.track:c===p.color)?fillColor(c,px,py,w,h):color(c);
+        r=Math.min(r,w/2,h/2);ctx.fillStyle=p.gradient&&(p.op==='slider'?c===p.track:p.op==='gauge'?c===p.bg:c===p.color)?fillColor(c,px,py,w,h):color(c);
         const inside=(xx,yy)=>{
             if(xx<0||yy<0||xx>=w||yy>=h)return false;
             const cx=xx<r?r:xx>=w-r?w-r-1:xx,cy=yy<r?r:yy>=h-r?h-r-1:yy;
@@ -145,11 +145,11 @@ function preview(ctx,p,x,y,color,assetImage=null){
         ctx.restore();
     }else if(p.op==='gauge'){
         const rx=Math.max(1,Math.min(p.w/2-1,p.h-7)),ry=Math.max(1,Math.floor(rx/2)),cx=p.x+p.w/2,cy=p.y+ry;
-        ctx.fillStyle=fillColor(p.bg,p.x,p.y,p.w,p.h);ctx.fillRect(p.x,p.y,p.w,p.h);ctx.strokeStyle=color(p.track);ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,-Math.PI*1.2,Math.PI*.2);ctx.stroke();
+        round(p.x,p.y,p.w,p.h,p.radius||0,p.bg);ctx.strokeStyle=color(p.track);ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(cx,cy,rx,ry,0,-Math.PI*1.2,Math.PI*.2);ctx.stroke();
         const a=-Math.PI*1.2+Math.PI*1.4*Math.max(0,Math.min(1,p.value/p.maximum));ctx.strokeStyle=color(p.color);ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*rx*.85,cy+Math.sin(a)*ry*.85);ctx.stroke();
         ctx.fillStyle=color(p.color);ctx.font='5px monospace';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText(String(p.value),p.x+1,p.y+p.h-5,p.w-2);
     }else if(p.op==='slider'){
-        const x=p.x*2,y=p.y*2,w=p.w*2,h=p.h*2;round(x,y,w,h,1,p.track);round(x,y+Math.floor(h/2),w,1,0,p.color);const at=Math.round((w-2)*Math.max(0,Math.min(1,p.value/p.maximum)));round(x+at,y,2,h,1,p.knob);
+        const x=p.x*2,y=p.y*2,w=p.w*2,h=p.h*2;round(x,y,w,h,p.radius??0,p.track);round(x,y+Math.floor(h/2),w,1,0,p.color);const at=Math.round((w-2)*Math.max(0,Math.min(1,p.value/p.maximum)));round(x+at,y,2,h,1,p.knob);
     }else if(p.op==='rect'){
         round(p.x,p.y,p.w,p.h,p.radius,p.color,p.outline);
     }else if(p.op==='bar'){

@@ -4,9 +4,21 @@
  const skip=new Set(['id','name','op','type','x','y','w','h','x2','y2','r','page','events','paint','items','asset','sourceAsset','src','src_down','goToPage']);
  const cells=p=>!p.op||['picture','button','slider','font_text','put','big','fill'].includes(p.op);
  const applicable=(p,key)=>!p.type||['fg','bg','visible'].includes(key)||key==='text'&&['label','button','checkbox','textbox'].includes(p.type)||key==='checked'&&p.type==='checkbox'||key==='secret'&&p.type==='textbox'||key==='value'&&p.type==='progress';
+ const Pixels=typeof module!=='undefined'?require('./pixels.js'):root.TDPixels;
+ const fontKinds=['put','big','draw_text','font_text','button','picture'];
+ const supportsCorners=p=>['rect','bar','button','slider','gauge'].includes(p.op);
+ const supportsTransparent=p=>['put','big','draw_text','font_text'].includes(p.op);
+ function properties(p){
+  const out={...p};
+  if(p.op&&Pixels.defaults[p.op])Object.assign(out,Pixels.defaults[p.op],p);
+  if(supportsCorners(p)&&!Object.hasOwn(out,'radius'))out.radius=0;
+  if(fontKinds.includes(p.op)&&!Object.hasOwn(out,'font'))out.font=null;
+  return out;
+ }
  function common(items){
   if(!items.length)return[];
-  return Object.keys(items[0]).filter(k=>!skip.has(k)&&!k.startsWith('on_')&&items.every(p=>applicable(p,k)&&Object.hasOwn(p,k)&&typeof p[k]===typeof items[0][k])&&(items[0][k]===null||typeof items[0][k]!=='object'||k==='font'||Array.isArray(items[0][k]))).map(key=>({key,value:items[0][key],mixed:items.some(p=>JSON.stringify(p[key])!==JSON.stringify(items[0][key]))}));
+  const values=items.map(properties);
+  return [...new Set(values.flatMap(Object.keys))].filter(k=>!skip.has(k)&&!k.startsWith('on_')&&values.every(p=>applicable(p,k)&&Object.hasOwn(p,k)&&(k==='font'||typeof p[k]===typeof values[0][k]))&&(values[0][k]===null||typeof values[0][k]!=='object'||k==='font'||Array.isArray(values[0][k]))).map(key=>({key,value:values[0][key],mixed:values.some(p=>JSON.stringify(p[key])!==JSON.stringify(values[0][key]))}));
  }
  function bounds(items){return {x:Math.min(...items.map(b=>b.x)),y:Math.min(...items.map(b=>b.y)),w:Math.max(...items.map(b=>b.x+b.w))-Math.min(...items.map(b=>b.x)),h:Math.max(...items.map(b=>b.y+b.h))-Math.min(...items.map(b=>b.y))};}
  function transform(p,b,group,target,offset={x:0,y:0}){
@@ -21,5 +33,5 @@
   if('radius' in p)out.radius=Math.max(0,Math.round(p.radius*Math.min(sx,sy)));
   return out;
  }
- const api={common,bounds,transform};if(typeof module!=='undefined')module.exports=api;else root.TDSelection=api;
+ const api={common,bounds,transform,supportsCorners,supportsTransparent};if(typeof module!=='undefined')module.exports=api;else root.TDSelection=api;
 })(typeof window!=='undefined'?window:globalThis);

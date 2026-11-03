@@ -1588,6 +1588,29 @@ static void picture_fallback(surf_t *d, int dx, int dy, int dw, int dh, const td
     free(px);
 }
 
+/* Terminal fallback stays inside the picture. Native pictures cover only
+ * that rectangle, so an unbounded label leaves stray characters beside it. */
+static void picture_label(obj_t *o, int x, int y, int w, int h, const char *text, int fg, int align, bool wrap)
+{
+    int row = 0;
+    while (*text && row < h) {
+        const char *end = text;
+        int count = 0;
+        while (*end && *end != '\n') { td_utf8_next(&end); count++; }
+        if (!count) row++;
+        while (count && row < h) {
+            int n = count < w ? count : w;
+            int col = align == 1 ? (w - n) / 2 : align == 2 ? w - n : 0;
+            for (int i = 0; i < n; i++)
+                canvas_set(o, x + col + i, y + row, td_utf8_next(&text), fg, TD_PYUI_CLEAR);
+            row++;
+            count -= n;
+            if (!wrap) break;
+        }
+        text = *end ? end + 1 : end;
+    }
+}
+
 static void picture_request(obj_t *o, const td_pyui_msg_t *m, const char *text)
 {
     bool text_only = m->op == TD_PYUI_FONT_TEXT;
@@ -1688,8 +1711,9 @@ static void picture_request(obj_t *o, const td_pyui_msg_t *m, const char *text)
         round_rect(&s,2*m->a,2*m->b,2*m->c,2*m->d,0,m->f < 0 ? td_theme()->win_bg : m->f,false);
     if (label[0])
     {
-        int n = td_utf8_len(label);
-        canvas_put(o, m->a + (m->c - n) / 2, m->b + m->d / 2, label, part.fg, TD_PYUI_CLEAR);
+        int row = text_only ? 0 : m->d / 2;
+        picture_label(o, m->a, m->b + row, m->c, m->d - row, label, part.fg,
+                      text_only ? m->flags & 3 : 1, text_only && (m->flags & 16));
     }
 
     for (int i = 0; i < MAX_PICS; i++)

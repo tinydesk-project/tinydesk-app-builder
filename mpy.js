@@ -29,15 +29,16 @@
         })().catch(error=>{factoryPromise=null;throw error;});
         return factoryPromise;
     }
-    async function compileMpy(source,filename='app.py'){
+    async function compileMpy(source,filename='app.py',compilation={mode:'bytecode'}){
         if(typeof source!=='string')throw Error('Compiler source must be a string.');
         if(!/^[A-Za-z0-9_.-]+\.py$/.test(filename))throw Error('Use a simple .py source filename.');
         const token=typeof document==='object'?document.querySelector('meta[name="studio-simulation-token"]')?.content:null;
         if(token){
-            const response=await fetch('/compiler/compile',{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':token},body:JSON.stringify({source,filename})});
+            const response=await fetch('/compiler/compile',{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':token},body:JSON.stringify({source,filename,compilation})});
             const result=await response.json();if(!response.ok)throw Error(result.error||'Compilation failed.');
             return Uint8Array.from(atob(result.binary),c=>c.charCodeAt(0));
         }
+        if(compilation?.mode==='native')throw Error('Native export requires the local helper and its matching mpy-cross compiler.');
         const factory=await loadFactory(),diagnostics=[];
         const compiler=await factory({noInitialRun:true,print:s=>diagnostics.push(String(s)),printErr:s=>diagnostics.push(String(s))});
         const output=filename.slice(0,-3)+'.mpy';

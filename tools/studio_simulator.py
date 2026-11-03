@@ -95,6 +95,15 @@ class Simulation:
             data=base64.b64decode(item['data'],validate=True)
             if not name.endswith('.mpy') or len(data)<4 or len(data)>2*1024*1024 or data[:2]!=b'M\x06':raise ValueError('Invalid compiled simulation dependency')
             (root/name).write_bytes(data)
+        # Desktop simulation cannot execute ESP instructions. Prefer an explicitly
+        # supplied portable source implementation, otherwise report before launch.
+        from app_package import mpy_arch, safe_name
+        for name in body.get('modules', []):
+            safe_name(name)
+            compiled=root/(name+'.mpy')
+            if compiled.is_file() and mpy_arch(compiled.read_bytes()):
+                if (root/(name+'.py')).is_file():compiled.unlink()
+                else:raise ValueError('Native module '+name+' targets ESP hardware. Supply a portable '+name+'.py via --project-dir for desktop simulation, or test this app on its target board.')
         # Exported apps resolve resources relative to their entry file. Check
         # the same flat names before launch, rather than displaying a blank
         # app or a MicroPython image-load traceback after starting the terminal.
@@ -195,7 +204,7 @@ def main():
                     if self.path=='/simulation/start': result=sim.start(body)
                     elif self.path=='/compiler/compile':
                         if args.compiler is None:raise ValueError('Start the helper with --compiler PATH_TO_MPY_CROSS.')
-                        binary=compile_source(args.compiler,body['source'],body.get('filename','app.py'))
+                        binary=compile_source(args.compiler,body['source'],body.get('filename','app.py'),body.get('compilation'))
                         result={'binary':base64.b64encode(binary).decode()}
                     elif self.path=='/package/build':
                         if args.compiler is None:raise ValueError('Start the helper with --compiler PATH_TO_MPY_CROSS.')

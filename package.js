@@ -27,7 +27,7 @@ packageButton.onclick=async()=>{
   packageButton.disabled=true;const app=await exportApp();
   const blob=new Blob([app.content],{type:'application/octet-stream'});
   const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=app.name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);
-  toast('App package exported with project, bytecode and assets.');
+  toast('App package exported with project, '+(design.compilation?.mode==='native'?'native code':'bytecode')+' and assets.');
  }catch(e){toast(e.message);}finally{packageButton.disabled=false;}
 };
 document.querySelector('#file').addEventListener('change',async e=>{

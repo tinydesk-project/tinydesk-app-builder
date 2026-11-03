@@ -1,5 +1,36 @@
 # App Builder local validation
 
+## 0.6.0: native packages and consistent appearance
+
+- Browser verified mixed corner styles/radii, immediate group corner edits,
+  independent mixed gradient fields and preservation of different end colors
+  after changing the common start color. Optional font fields stay visible.
+- Generated-font example switches to Transparent in the Inspector and runs in
+  the native simulator. This exposed and fixed a C fallback-label overflow;
+  its regression checks cells outside a multiline transparent text rectangle.
+  All 24 native tests pass after the fix, including the socket protocol test.
+- Native exports compile for `xtensawin` and `rv32imc`. The actual browser
+  Export app download was inspected and contains native C6 code, editable JSON,
+  assets and a matching CPU/ABI manifest. Its bootstrap remains bytecode.
+- `verify_native_package.py` covers deterministic output, preserved native
+  dependencies, mixed-CPU/unsupported-ABI rejection, wrong-target rejection
+  before extraction and clear desktop-simulation diagnostics.
+- HTTP compiler tests cover both native targets. Portable export/control/pixel,
+  package and real font runtime tests pass. Nine Node suites pass, including
+  new optional-field and rounded slider/gauge checks.
+- File-size comparison on the unchanged gradient-controls example: portable
+  main 2,737 B, Xtensa native 10,221 B, C6 native 10,089 B. These measurements
+  do not establish a whole-GUI speedup or executable-RAM fit for a larger app.
+- Actual native package execution succeeded on the 4 MB ESP32, 240 MHz,
+  using its existing root session/firmware. An identical integer loop ran
+  20,000 iterations in 167,592 us bytecode versus 39,924 us native (best of
+  three, GC before each), both returning 23,280: approximately 4.2x faster
+  for this calculation. A portable dependency and the native main shared the
+  same TDAPP container. The legacy loader used an `.mpy` filename for that
+  container; current TinyDesk also recognizes `.tdapp`. Temporary files and
+  its cache were removed afterwards. C6 native execution and whole-GUI
+  performance have not been measured; native export remains opt-in.
+
 ## 0.5.0: shared attributes, gradient fills and runtime integration
 
 - Browser verified Shift/Outline group selection, mixed shared fields, live

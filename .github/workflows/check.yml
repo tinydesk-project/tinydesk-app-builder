@@ -16,6 +16,10 @@ jobs:
       - run: node tests/resources.test.cjs
       - run: node tests/simulation-frame.test.cjs
       - run: node tests/geometry.test.cjs
+      - run: node tests/fonts.test.cjs
+      - run: node tests/startup.test.cjs
+      - run: node tests/selection.test.cjs
+      - run: node tests/gradients.test.cjs
       - run: python tests/verify_export.py
       - run: python tests/verify_pixels.py
       - run: python tests/verify_controls.py

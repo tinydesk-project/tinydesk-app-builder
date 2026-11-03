@@ -1,4 +1,47 @@
-# TinyDesk App Builder 0.5.0
+# TinyDesk App Builder 0.6.0
+
+## Native export and shared appearance
+
+Export options now offers **Portable bytecode** (default), **Native · ESP32 /
+ESP32-S3 / CrowPanel** (`xtensawin`) and **Native · ESP32-C6** (`rv32imc`).
+Export .mpy and Export app use that choice through the local helper. A native
+TDAPP keeps its editable JSON and assets, and records its CPU/MPY ABI contract.
+Its bootstrap checks the target before extracting files. Native execution
+requires root and executable internal RAM; it is experimental until measured
+with your app on its target board. Re-export for another CPU.
+
+Native MicroPython is machine code emitted from Python, not C compilation.
+You may also import a C-built native `.mpy` dependency compiled with the matching
+MicroPython 6.3 dynamic-module toolchain. The package preserves it and rejects
+mixed CPU targets. C source compilation is an external toolchain step; App
+Builder does not accept arbitrary `.bin` executables. See
+[MicroPython's native-module guide](https://docs.micropython.org/en/latest/develop/natmod.html).
+
+Native code is optional because drawing already runs in TinyDesk C. In the
+gradient-controls compilation check, portable main code was 2,737 bytes versus
+10,221 bytes for Xtensa and 10,089 bytes for C6 native code. These are file sizes,
+not runtime speed measurements. Native code competes for executable RAM and
+does not accelerate image decoding, display DMA or storage by itself.
+
+A separate board benchmark on the 4 MB ESP32 at 240 MHz ran the same 20,000
+iteration integer calculation in 167.6 ms bytecode versus 39.9 ms native
+(best of three, identical results). That approximately 4.2x improvement applies
+to this calculation; it is not a measurement of complete GUI startup or drawing.
+
+Run simulation executes the generated portable source. An ESP-native dependency
+needs a portable `.py` implementation supplied through `--project-dir`, or a
+hardware test. The helper reports that requirement before launching.
+
+The group Inspector retains applicable shared fields even when an optional
+value is missing. Equal values are filled; differences are blank/Mixed.
+**Corner style** is available on rectangular panels, meters, buttons, sliders
+and gauges. Geometric gradient controls remain available for image-skinned
+buttons; enabling them replaces the skin. Editing one gradient endpoint keeps
+each element's other endpoint. Lines and circles keep their natural geometry.
+
+For text, choose **Text background → Transparent** or **Solid color**. Font
+assets contain glyph coverage; transparency belongs to each text element.
+The group Inspector can apply the same background mode to multiple text fields.
 
 ## Group editing and gradient fills
 

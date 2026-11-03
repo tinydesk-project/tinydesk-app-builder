@@ -59,7 +59,7 @@ assetInput.onchange=async()=>{
    if(targetInfo&&targetInfo.kind!=='module')throw Error('Choose an image or text file for this resource.');
    const data=new Uint8Array(await file.arrayBuffer()),name=assetImportTarget||file.name,module=name.replace(/\.mpy$/i,'');
    if(data.length>2*1024*1024)throw Error('Choose a compiled module up to 2 MiB.');
-   if(!name.endsWith('.mpy')||!TD.identifier(module)||data.length<4||data[0]!==77||data[1]!==6||data[2]!==0)throw Error('Choose portable MicroPython v6 bytecode from the matching mpy-cross compiler.');
+   if(!name.endsWith('.mpy')||!TD.identifier(module)||data.length<4||data[0]!==77||data[1]!==6||(data[2]!==0&&(![10,11].includes((data[2]>>2)&0x2f)||(data[2]&3)!==3||(data[2]&0x40))))throw Error('Choose MicroPython v6 bytecode or an MPY 6.3 native module for ESP32/S3 (xtensawin) or C6 (rv32imc).');
    snapshot();design.binaryDependencies=[...(design.binaryDependencies||[]).filter(f=>f.name!==name),{name,originalName:file.name,data:bytes64(data)}];
    design.modules=[...new Set([...(design.modules||[]),module])];
    if(document.querySelector('#resourceList'))document.querySelector('#modal').close();

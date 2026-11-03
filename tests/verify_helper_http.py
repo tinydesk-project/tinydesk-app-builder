@@ -35,6 +35,9 @@ try:
         return json.load(urllib.request.urlopen(request,timeout=25))
     binary=base64.b64decode(post('/compiler/compile',{'source':'print(42)','filename':'test.py'})['binary'])
     assert binary[:2]==b'M\x06' and binary[2]==0
+    for arch,code in [('xtensawin',10),('rv32imc',11)]:
+        native=base64.b64decode(post('/compiler/compile',{'source':'def compute(x):\n return x*x+1\nprint(compute(4))','compilation':{'mode':'native','arch':arch}})['binary'])
+        assert (native[2]>>2)&0x2f==code and native[2]&3==3
     project={'version':1,'name':'http_test'}
     package=base64.b64decode(post('/package/build',{'project':project,'source':'print(42)'})['binary'])
     assert inspect(package)[1]==project

@@ -41,6 +41,11 @@ def _tdapp_run():
             raise ValueError('Unsupported TDAPP contract')
         if getattr(sys.implementation,'_mpy',0)&255 != 6:
             raise ValueError('TDAPP needs MicroPython bytecode v6')
+        native=manifest['runtime'].get('native')
+        if native:
+            actual=getattr(sys.implementation,'_mpy',0)
+            if ((actual>>10)&0x2f)!=native['id'] or ((actual>>8)&3)!=3:
+                raise ValueError('TDAPP needs native '+native['arch']+' / MPY 6.3; export portable bytecode for another target')
         for feature in manifest['runtime']['features']:
             if not hasattr(tdui.Canvas,feature):
                 raise ValueError('Firmware missing Canvas.'+feature)
@@ -115,16 +120,38 @@ def safe_name(name):
     return name
 
 
-def compile_source(compiler,source,source_name='app.py'):
+NATIVE_ARCHES={'xtensawin':10,'rv32imc':11}
+
+
+def mpy_arch(data):
+    if len(data)<4 or data[:2]!=b'M\x06':
+        raise ValueError('Expected MicroPython v6 .mpy')
+    arch=(data[2]>>2)&0x2f
+    if arch and (arch not in NATIVE_ARCHES.values() or data[2]&3!=3 or data[2]&0x40):
+        raise ValueError('Unsupported native .mpy architecture, ABI or architecture flags')
+    if not arch and data[2]!=0:
+        raise ValueError('Unsupported bytecode feature flags')
+    return arch
+
+
+def compile_source(compiler,source,source_name='app.py',compilation=None):
+    if compilation is not None and not isinstance(compilation,dict):
+        raise ValueError('Invalid compilation target')
+    mode=(compilation or {}).get('mode','bytecode')
+    arch=(compilation or {}).get('arch','')
+    if mode not in ('bytecode','native') or mode=='native' and (not isinstance(arch,str) or arch not in NATIVE_ARCHES):
+        raise ValueError('Choose portable bytecode or a supported native target')
     with tempfile.TemporaryDirectory(prefix='tdapp-compile-') as work:
         src=Path(work)/'app.py';dst=Path(work)/'app.mpy'
         src.write_text(source,encoding='utf-8')
-        result=subprocess.run([str(compiler),'-s',source_name,'-o',str(dst),str(src)],capture_output=True,timeout=30)
+        flags=['-march='+arch,'-X','emit=native'] if mode=='native' else []
+        result=subprocess.run([str(compiler),*flags,'-s',source_name,'-o',str(dst),str(src)],capture_output=True,timeout=30)
         if result.returncode:
             raise ValueError(result.stderr.decode(errors='replace') or 'Compilation failed')
         data=dst.read_bytes()
-        if len(data)<4 or data[:2]!=b'M\x06' or data[2]!=0:
-            raise ValueError('Compiler must emit portable MicroPython bytecode v6')
+        actual=mpy_arch(data)
+        if actual and actual!=NATIVE_ARCHES.get(arch):
+            raise ValueError('Compiler emitted the wrong native target')
         return data
 
 
@@ -141,7 +168,7 @@ def build(compiler,project,source,assets=None,modules=None,binaries=None):
         if name in (binaries or {}) or (name and name[:-4]+'.py' in (modules or {})):
             resource['data']=''
     files={'project.json':json.dumps(project,ensure_ascii=False,separators=(',',':')).encode(),
-           '_tdapp_main.mpy':compile_source(compiler,source)}
+           '_tdapp_main.mpy':compile_source(compiler,source,compilation=project.get('compilation'))}
     for name,data in (assets or {}).items():
         name=safe_name(name)
         if name in files:raise ValueError('Duplicate package entry')
@@ -154,9 +181,13 @@ def build(compiler,project,source,assets=None,modules=None,binaries=None):
         files[name]=compile_source(compiler,code,name[:-4]+'.py')
     for name,data in (binaries or {}).items():
         name=safe_name(name);data=bytes(data)
-        if not name.endswith('.mpy') or name in files or len(data)<4 or data[:2]!=b'M\x06' or data[2]!=0:
+        if not name.endswith('.mpy') or name in files:
             raise ValueError('Invalid or duplicate compiled dependency')
+        mpy_arch(data)
         files[name]=data
+    native={mpy_arch(data) for name,data in files.items() if name.endswith('.mpy')}-{0}
+    if len(native)>1:
+        raise ValueError('All native modules in a package must target the same CPU architecture')
     if len(files)>MAX_FILES:raise ValueError('Too many package files')
     startup=project.get('startup',{})
     if startup:
@@ -173,6 +204,9 @@ def build(compiler,project,source,assets=None,modules=None,binaries=None):
     manifest={'format':1,'studio':project.get('provenance',{}).get('lastEditedWith','unknown'),
               'application':{'name':project['name'],**project.get('application',{})},
               'projectSchema':1,'runtime':{'api':1,'mpy':'6.3','features':features},'files':[]}
+    if native:
+        arch=native.pop()
+        manifest['runtime']['native']={'arch':next(k for k,v in NATIVE_ARCHES.items() if v==arch),'id':arch,'requiresRoot':True}
     if any(p.get('gradient') for w in project.get('windows',[]) for o in w.get('widgets',[]) for p in o.get('paint',[])):
         manifest['runtime']['capabilities']=['gradient_fills']
     if startup:manifest['startup']=startup

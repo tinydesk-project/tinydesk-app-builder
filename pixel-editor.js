@@ -7,6 +7,7 @@ function editPixel(index=-1){
     document.querySelector('#typeTag').textContent='ELEMENT';
     document.querySelector('.inspector-tabs').hidden=true;
     let op=index>=0?TD.clone(o.paint[index]):{op:'bar',...TD.clone(TDPixels.defaults.bar)};
+    if(['slider','gauge'].includes(op.op)&&op.radius===undefined)op.radius=0;
     if(op.op!=='button'&&!op.name)op.name='';
     const drafts={};
     function show(keepAppearance=false){
@@ -29,6 +30,7 @@ function editPixel(index=-1){
         const fontChoice=typeof fontOptions==='function'&&['put','big','draw_text','font_text','button','picture'].includes(op.op);
         if(fontChoice)basic='<label class="field"><span>Font / pixel size</span><select id="elementFont">'+fontOptions(op.font?.path||'')+'</select></label><p class="hint">A generated font has a fixed pixel size. Use Fonts for another size; the font is loaded once by the app.</p><button id="generateElementFont">Generate another font…</button>'+basic;
         html+='<div class="pixel-fields">'+basic+'</div>';
+        if(['put','big','draw_text','font_text'].includes(op.op))html+='<label class="field"><span>Text background</span><select id="textBackground"><option value="transparent" '+(op.bg===-2?'selected':'')+'>Transparent</option><option value="solid" '+(op.bg!==-2?'selected':'')+'>Solid color</option></select></label><p class="hint">Transparent text shows the artwork beneath the glyphs. Set Background below for a solid color.</p>';
         if('radius' in op)html+='<label class="field"><span>Corner style</span><select id="cornerStyle">'+(op.asset?'<option value="skin" selected>Image skin corners</option>':'')+'<option value="square" '+(!op.asset&&op.radius===0?'selected':'')+'>Straight corners</option><option value="round" '+(!op.asset&&op.radius>0?'selected':'')+'>Rounded corners</option></select></label><p class="hint">'+(op.asset?'The skin supplies its own shape. Choose Straight or Rounded to replace the image skin with the button’s colors.':'Changes redraw immediately. Rounding needs at least 6 pixels of height (3 cells for buttons). Later opaque elements can cover the corners.')+'</p>';
         if(op.op==='slider'){
             const handler=design.handlers[op.on_change];
@@ -66,6 +68,7 @@ function editPixel(index=-1){
                 }catch(error){$('#pixelError').textContent=error.message;}
             };
         }
+        if($('#textBackground'))$('#textBackground').onchange=e=>{const input=root.querySelector('[data-pixel-key="bg"]');input.value=e.target.value==='transparent'?-2:Number(input.value)>=0?input.value:25;$('#pixelSave').click();show(keepAppearance);};
         if($('#cornerStyle'))$('#cornerStyle').onchange=e=>{
             if(e.target.value==='skin')return;
             const radius=root.querySelector('[data-pixel-key="radius"]');radius.value=e.target.value==='square'?0:Math.max(3,Number(radius.value)||6);
@@ -88,7 +91,7 @@ function editPixel(index=-1){
             $('#controlBody').value=field+'.set('+(isText?'text=str(slider.values["value"])':'value=slider.values["value"]')+')';
             $('#pixelSave').click();
         };
-        $('#pixelKind').onchange=e=>{const kind=e.target.value;op=kind==='big'?{op:'big',x:0,y:0,text:'123',scale:2,width:4,fg:231,bg:25}:kind==='put'?{op:'put',x:0,y:0,text:'Label',fg:231,bg:25}:kind==='fill'?{op:'fill',x:0,y:0,w:10,h:2,ch:' ',fg:231,bg:25}:{op:kind,...TD.clone(TDPixels.defaults[kind])};op.name=op.op==='button'?unique('pixel_button'):'';if(kind==='font_text'){const file=design.assets?.find(f=>/\.tdfont$/i.test(f.name));if(file)op.font={path:'/root/'+file.name};}show();};
+        $('#pixelKind').onchange=e=>{const kind=e.target.value;op=kind==='big'?{op:'big',x:0,y:0,text:'123',scale:2,width:4,fg:231,bg:25}:kind==='put'?{op:'put',x:0,y:0,text:'Label',fg:231,bg:25}:kind==='fill'?{op:'fill',x:0,y:0,w:10,h:2,ch:' ',fg:231,bg:25}:{op:kind,...TD.clone(TDPixels.defaults[kind])};if(['slider','gauge'].includes(kind))op.radius=0;op.name=op.op==='button'?unique('pixel_button'):'';if(kind==='font_text'){const file=design.assets?.find(f=>/\.tdfont$/i.test(f.name));if(file)op.font={path:'/root/'+file.name};}show();};
         if(op.op==='button'){
             $('#buttonSkin').onchange=()=>{
                 try{readFields(op);}catch(e){$('#pixelError').textContent=e.message;return;}
@@ -127,6 +130,8 @@ function editPixel(index=-1){
             try{
                 const next=TD.clone(op);
                 readFields(next);
+                const replacedSkin=!!op.asset&&next.radius!==op.radius;
+                if(replacedSkin){delete next.asset;delete next.src;delete next.src_down;delete next.border;}
                 const errors=[];
                 if(next.op==='big'){
                     const size=TD.bigLayout(next.text,next.scale,next.width);
@@ -153,13 +158,13 @@ function editPixel(index=-1){
                 }
                 snapshot('element:'+o.id+':'+index);for(const [name,handler] of Object.entries(handlers))Object.defineProperty(design.handlers,name,{value:handler,enumerable:true,writable:true,configurable:true});
                 if(index<0){index=o.paint.length;o.paint.push(next);drawingSelection={id:o.id,index};}else o.paint[index]=next;
-                op=next;$('.object-name').textContent=next.name||next.op;$('#pixelError').textContent='';if($('#cornerStyle'))$('#cornerStyle').value=next.asset?'skin':next.radius>0?'round':'square';renderLayers();update();
+                op=next;$('.object-name').textContent=next.name||next.op;$('#pixelError').textContent='';if($('#cornerStyle'))$('#cornerStyle').value=next.asset?'skin':next.radius>0?'round':'square';renderLayers();update();if(replacedSkin)show(true);
             }catch(e){$('#pixelError').textContent=e.message;}
         };
         for(const input of root.querySelectorAll('[data-pixel-key]'))input.addEventListener(input.dataset.pixelKey.startsWith('on_')||input.dataset.pixelKey==='name'?'change':'input',()=>$('#pixelSave').click());
         for(const textarea of root.querySelectorAll('[data-event-body],#controlBody'))textarea.addEventListener('change',()=>$('#pixelSave').click());
         root.onfocusout=()=>{historyGroup=null;};
-        window.TDGradientInspector?.(root,op,gradient=>{try{readFields(op);if(gradient)op.gradient=gradient;else delete op.gradient;show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
+        window.TDGradientInspector?.(root,op,gradient=>{try{readFields(op);if(gradient){if(op.op==='button'&&op.asset)removeSkin();op.gradient=gradient;}else delete op.gradient;show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
     }
     function rememberDrafts(){for(const el of root.querySelectorAll('[data-event-body]'))drafts[el.dataset.eventBody]=el.value;}
     function removeSkin(){delete op.asset;delete op.src;delete op.src_down;delete op.border;}
