@@ -11,4 +11,4 @@ Each current-format `.json` is the complete design for the corresponding canonic
 - `long_strings`: maximum-length identifiers, generated tabs, quoted page names, and split escaped/Unicode literals.
 - `legacy.py`: the original single-line metadata format, preserved as an import compatibility fixture.
 
-`tests/reference/tdui.py` is an unmodified copy of the new supplied `reference/tdui.py`. The verifier checks that these match and runs the same exports with both this module and the round-3 snapshot `tests/reference/tdui_0.2.0.py`.
+The verifier runs the same exports with the firmware's current `vendor/tinydesk/tdui.py` (pinned by `tools/sync_tinydesk.py`) and with the round-3 snapshot `tests/reference/tdui_0.2.0.py`, which stands for boards still on TinyDesk 0.2.0.

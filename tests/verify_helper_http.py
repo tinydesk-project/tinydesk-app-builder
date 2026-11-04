@@ -17,21 +17,21 @@ sys.path.insert(0,str(root/'tools'))
 from app_package import inspect
 with socket.socket() as sock:
     sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
-fixture=tempfile.TemporaryDirectory(prefix='studio-http-resources-')
+fixture=tempfile.TemporaryDirectory(prefix='tdab-http-')
 folder=Path(fixture.name)
 (folder/'declared.py').write_text('VALUE=42',encoding='utf-8')
 (folder/'unrelated.py').write_text('VALUE="UNRELATED"',encoding='utf-8')
 (folder/'fallback.ppm').write_bytes(b'P6\n1 1\n255\n\0\0\0')
-process=subprocess.Popen([sys.executable,str(root/'tools/studio_simulator.py'),'--port',str(port),'--project-dir',str(folder)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+process=subprocess.Popen([sys.executable,str(root/'tools/builder_helper.py'),'--port',str(port),'--project-dir',str(folder)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
 lines=queue.Queue();threading.Thread(target=lambda:lines.put(process.stdout.readline()),daemon=True).start()
 try:
     assert b'http://' in lines.get(timeout=10)
     origin='http://127.0.0.1:'+str(port)
     html=urllib.request.urlopen(origin,timeout=5).read().decode()
-    token=re.search(r'name="studio-simulation-token" content="([^"]+)"',html)[1]
-    assert 'name="studio-simulation-protocol" content="3"' in html
+    token=re.search(r'name="builder-token" content="([^"]+)"',html)[1]
+    assert 'name="builder-protocol" content="4"' in html
     def post(route,body,auth=token):
-        request=urllib.request.Request(origin+route,json.dumps(body).encode(),headers={'Origin':origin,'X-Studio-Token':auth,'Content-Type':'application/json'})
+        request=urllib.request.Request(origin+route,json.dumps(body).encode(),headers={'Origin':origin,'X-Builder-Token':auth,'Content-Type':'application/json'})
         return json.load(urllib.request.urlopen(request,timeout=25))
     binary=base64.b64decode(post('/compiler/compile',{'source':'print(42)','filename':'test.py'})['binary'])
     assert binary[:2]==b'M\x06' and binary[2]==0

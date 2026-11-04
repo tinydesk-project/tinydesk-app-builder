@@ -28,13 +28,14 @@
 #include <string.h>
 
 #include "td_apps.h"
+#include "pyui_cache.h"
 #include "tinydesk/td_canvas.h"
 #include "tinydesk/td_picture.h"
 
 #define REQ_SIZE    4096   /* powers of two */
 #define EVT_SIZE    2048
 #define MAX_OBJS    104    /* 4 windows, 48 widgets, images, dialogs and spare */
-#define MAX_PICS    (TD_PYUI_MAX_CELLS > 2000 ? 192 : 48) /* all cached pages */
+#define MAX_PICS    (TD_PYUI_MAX_CELLS > 2000 ? 512 : 48) /* all cached pages */
 #define TICK_MS     10
 #define TICK_BUDGET 200    /* requests run per tick, so the desktop stays smooth */
 #define BATCH_MS    1000   /* absolute limit, not extended by nested groups */
@@ -107,6 +108,8 @@ typedef struct
     /* canvas: `pages` pixel layers of 2w x 2h after one another (NULL until
      * the first pixel is drawn) */
     uint8_t *px;
+    uint16_t *rgb;
+    uint32_t rgb_serial;
     long px_bytes;
     /* image: its pixels; a mask added later is a block of its own */
     td_pyui_image_t *img;
@@ -118,6 +121,8 @@ typedef struct
 {
     unsigned refs;
     int x, y, w, h;      /* clipped canvas pixels before the fallback is drawn */
+    size_t bytes;
+    uint16_t *rgb;
     uint8_t px[];
 } pic_bg_t;
 
@@ -137,6 +142,9 @@ typedef struct
     uint32_t serial;      /* new for every picture: td_picture_add()'s id */
     pic_bg_t *bg;         /* shared by copied pages; charged to the pixel budget */
     pic_text_t *text;
+    td_pcache_ref_t cache;
+    uint16_t cache_theme;
+    bool warm_attempted;
 } pic_t;
 
 typedef struct
@@ -151,6 +159,9 @@ typedef struct
     uint32_t batch_start;
     uint32_t batch_limit;
     bool batch_expired;
+    size_t cache_limit;
+    unsigned warm_cursor;
+    bool cache_warm;
     char text[TD_PYUI_TEXT_MAX + 1];
 } link_t;
 
@@ -158,6 +169,20 @@ static atomic_int s_state = LINK_OFF;
 static atomic_long s_pixels;   /* bytes of TD_PYUI_MAX_PIXELS in use */
 static link_t *s_link;    /* set by the script before LINK_ON, freed after LINK_OFF */
 static atomic_bool s_started;
+static atomic_bool s_rgb;
+static atomic_uint s_raster_ms,s_decode_ms;
+
+void td_pyui_cache_stats(uint32_t out[12])
+{td_pcache_info(out);out[6]=atomic_load(&s_raster_ms);out[7]=atomic_load(&s_decode_ms)+td_picture_runs_ms();td_picture_profile(out+8);}
+
+bool td_pyui_enable_rgb(void)
+{
+    if(TD_PYUI_MAX_CELLS<=2000)return false;
+    if(!atomic_load(&s_rgb)&&atomic_load(&s_pixels)>0)return false;
+    atomic_store(&s_rgb,true);return true;
+}
+
+bool td_pyui_rgb_enabled(void){return atomic_load(&s_rgb);}
 
 /* ------------------------------------------------------------ queues */
 
@@ -233,6 +258,9 @@ bool td_pyui_attach(void)
     l->evt.buf = evt;
     l->evt.cap = EVT_SIZE;
     s_link = l;
+    l->cache_limit=TD_PYUI_MAX_CELLS>2000?131072:0;l->cache_warm=true;
+    atomic_store(&s_raster_ms,0);atomic_store(&s_decode_ms,0);
+    atomic_store(&s_rgb,false);
     atomic_store_explicit(&s_state, LINK_ON, memory_order_release);
     return true;
 }
@@ -292,22 +320,28 @@ void td_pyui_pixels_give(long bytes)
 
 td_pyui_image_t *td_pyui_image_new(int w, int h, bool mask)
 {
+    return td_pyui_image_new_rgb(w,h,mask,false);
+}
+
+td_pyui_image_t *td_pyui_image_new_rgb(int w, int h, bool mask,bool rgb)
+{
     if (w < 1 || h < 1 || w > 4096 || h > 4096)
         return NULL;
     size_t n = (size_t)w * (size_t)h;
-    td_pyui_image_t *img = calloc(1, sizeof(*img) + n * (mask ? 2 : 1));
+    td_pyui_image_t *img = calloc(1, sizeof(*img) + n * ((mask ? 2 : 1)+(rgb?2:0)));
     if (!img)
         return NULL;
     img->w = (int16_t)w;
     img->h = (int16_t)h;
-    img->px = (uint8_t *)(img + 1);
+    img->rgb = rgb ? (uint16_t *)(img+1) : NULL;
+    img->px = (uint8_t *)(img + 1)+(rgb?2*n:0);
     img->mask = mask ? img->px + n : NULL;
     return img;
 }
 
 long td_pyui_image_bytes(const td_pyui_image_t *img)
 {
-    return (long)img->w * img->h * (img->mask ? 2 : 1);
+    return (long)img->w * img->h * ((img->mask ? 2 : 1)+(img->rgb?2:0));
 }
 
 void td_pyui_send_image(uint8_t op, uint16_t id, int a, int b, td_pyui_image_t *img, void (*wait)(void))
@@ -396,7 +430,7 @@ static void release_picture(pic_t *p)
     p->text = NULL;
     if (p->bg && --p->bg->refs == 0)
     {
-        td_pyui_pixels_give((long)p->bg->w * p->bg->h);
+        td_pyui_pixels_give((long)p->bg->bytes);
         free(p->bg);
     }
     p->bg = NULL;
@@ -883,6 +917,9 @@ static uint8_t *canvas_layer(const obj_t *o, int page)
     return o->px + (size_t)page * (size_t)layer_size(o);
 }
 
+static uint16_t *canvas_rgb(const obj_t *o,int page)
+{return o->rgb?o->rgb+(size_t)page*layer_size(o):NULL;}
+
 /* Give each cell's four pixels the cell's background. */
 static void layer_from_cells(obj_t *o, int page)
 {
@@ -896,6 +933,7 @@ static void layer_from_cells(obj_t *o, int page)
             uint8_t c = cell_bg(&cells[y * o->rect.w + x]);
             uint8_t *p = px + (2 * y) * pw + 2 * x;
             p[0] = p[1] = p[pw] = p[pw + 1] = c;
+            if(o->rgb){uint16_t *q=canvas_rgb(o,page)+2*y*pw+2*x;q[0]=q[1]=q[pw]=q[pw+1]=td_palette_rgb565(c);}
         }
     }
 }
@@ -905,7 +943,8 @@ static bool canvas_pixels(obj_t *o)
 {
     if (o->px)
         return true;
-    long bytes = layer_size(o) * o->pages;
+    long n=layer_size(o)*o->pages;
+    long bytes=n*(td_pyui_rgb_enabled()?3:1);
     if (!td_pyui_pixels_take(bytes))
     {
         post(TD_PYUI_EV_ERROR, o->id, 0, 0, 0, 0, PIXELS_MSG);
@@ -919,6 +958,8 @@ static bool canvas_pixels(obj_t *o)
         return false;
     }
     o->px_bytes = bytes;
+    o->rgb=td_pyui_rgb_enabled()?(uint16_t *)(o->px+n):NULL;
+    o->rgb_serial=++s_link->pic_serial;
     for (int p = 0; p < o->pages; p++)
         layer_from_cells(o, p);
     return true;
@@ -931,6 +972,7 @@ typedef struct
     int w, h;
     cell_t *cells;      /* canvas: its cells (turned into pixel cells) */
     int cols;
+    uint16_t *rgb;
 } surf_t;
 
 static bool surface(obj_t *o, surf_t *s)
@@ -942,6 +984,7 @@ static bool surface(obj_t *o, surf_t *s)
         s->mask = o->img->mask;
         s->w = o->img->w;
         s->h = o->img->h;
+        s->rgb=o->img->rgb;
         return true;
     }
     if (o->kind != K_CANVAS || !canvas_pixels(o))
@@ -951,6 +994,7 @@ static bool surface(obj_t *o, surf_t *s)
     s->h = 2 * o->rect.h;
     s->cells = canvas_page(o, o->draw);
     s->cols = o->rect.w;
+    s->rgb=canvas_rgb(o,o->draw);
     return true;
 }
 
@@ -983,6 +1027,7 @@ static void plot(surf_t *s, int x, int y, int color)
 {
     if (x < 0 || y < 0 || x >= s->w || y >= s->h)
         return;
+    if(s->rgb&&!s->px){if(color>=0)s->rgb[y*s->w+x]=td_palette_rgb565((uint8_t)color);return;}
     if (s->cells)
     {
         cell_t *c = &s->cells[(y >> 1) * s->cols + (x >> 1)];
@@ -991,11 +1036,13 @@ static void plot(surf_t *s, int x, int y, int color)
             uint8_t b = cell_bg(c);
             uint8_t *p = s->px + (y & ~1) * s->w + (x & ~1);
             p[0] = p[1] = p[s->w] = p[s->w + 1] = b;
+            if(s->rgb){uint16_t *q=s->rgb+(y&~1)*s->w+(x&~1);q[0]=q[1]=q[s->w]=q[s->w+1]=td_palette_rgb565(b);}
             c->ch = PX_CELL;
             c->fg = -1;
             c->bg = TD_PYUI_CLEAR;
         }
         s->px[y * s->w + x] = color < 0 ? td_theme()->win_bg : (uint8_t)color;
+        if(s->rgb)s->rgb[y*s->w+x]=td_palette_rgb565(s->px[y*s->w+x]);
         return;
     }
     size_t i = (size_t)y * (size_t)s->w + (size_t)x;
@@ -1003,11 +1050,18 @@ static void plot(surf_t *s, int x, int y, int color)
         s->mask[i] = color == TD_PYUI_CLEAR;
     if (color >= 0)
         s->px[i] = (uint8_t)color;
+    if(s->rgb&&color>=0)s->rgb[i]=td_palette_rgb565((uint8_t)color);
 }
 
 static void fill_rect(surf_t *s, int x0, int y0, int w, int h, int color)
 {
     int x1 = x0 + w > s->w ? s->w : x0 + w, y1 = y0 + h > s->h ? s->h : y0 + h;
+    if(s->rgb&&!s->px&&!s->cells&&!s->mask){
+        if(color<0)return;
+        uint16_t value=td_palette_rgb565((uint8_t)color);
+        for(int y=y0<0?0:y0;y<y1;y++)for(int x=x0<0?0:x0;x<x1;x++)s->rgb[(size_t)y*s->w+x]=value;
+        return;
+    }
     for (int y = y0 < 0 ? 0 : y0; y < y1; y++)
         for (int x = x0 < 0 ? 0 : x0; x < x1; x++)
             plot(s, x, y, color);
@@ -1098,6 +1152,8 @@ static void gradient_shape(surf_t *s,const td_pyui_msg_t *m,const uint8_t *g,boo
         if(!inside)continue;
         if(m->flags&1){bool inner=disk?(x-r-1)*(x-r-1)+(y-r)*(y-r)<=r*r+r&&(x-r+1)*(x-r+1)+(y-r)*(y-r)<=r*r+r&&(x-r)*(x-r)+(y-r-1)*(y-r-1)<=r*r+r&&(x-r)*(x-r)+(y-r+1)*(y-r+1)<=r*r+r:in_round_rect(ex-(pairs?2:1),y,w,h,r)&&in_round_rect(ex+(pairs?2:1),y,w,h,r)&&in_round_rect(ex,y-1,w,h,r)&&in_round_rect(ex,y+1,w,h,r);if(inner)continue;}
         plot(s,ox+x,oy+y,gradient_color(g,x,y,w,h));
+        if(s->rgb){int n=(g[6]?w:h)-1,t=g[6]?x:y;if(n<1)n=1;
+            s->rgb[(oy+y)*s->w+ox+x]=td_rgb565((uint8_t)(g[0]+(g[3]-g[0])*t/n),(uint8_t)(g[1]+(g[4]-g[1])*t/n),(uint8_t)(g[2]+(g[5]-g[2])*t/n));}
     }
 }
 
@@ -1124,10 +1180,15 @@ static void pixel_bar(surf_t *s, const td_pyui_msg_t *m, const char *text)
         for (int x = x0; x < x1; x++)
         {
             int ex = pairs ? (x < w / 2 ? x | 1 : x & ~1) : x;
-            if (in_round_rect(ex, y, w, h, r))
+            if (in_round_rect(ex, y, w, h, r)){
                 plot(s, m->a + x, m->b + y,
                      x >= filled ? colors[1] : (m->flags & 1) && y == 0 ? colors[2]
                                                                         : m->len==10?gradient_color(colors+3,x,y,w,h):colors[0]);
+                if(s->rgb&&m->len==10&&x<filled&&!((m->flags&1)&&y==0)){
+                    const uint8_t *g=colors+3;int n=(g[6]?w:h)-1,t=g[6]?x:y;if(n<1)n=1;
+                    s->rgb[(m->b+y)*s->w+m->a+x]=td_rgb565((uint8_t)(g[0]+(g[3]-g[0])*t/n),(uint8_t)(g[1]+(g[4]-g[1])*t/n),(uint8_t)(g[2]+(g[5]-g[2])*t/n));
+                }
+            }
         }
 }
 
@@ -1165,6 +1226,7 @@ static void gradient(surf_t *s, int x0, int y0, int w, int h, const uint8_t *rgb
             for (int k = 0; k < 3; k++)
                 v[k] = (uint8_t)(rgb[k] + (rgb[3 + k] - rgb[k]) * t / n);
             plot(s, px, py, td_rgb256_dither(v[0], v[1], v[2], px, py));
+            if(s->rgb)s->rgb[py*s->w+px]=td_rgb565(v[0],v[1],v[2]);
         }
     }
 }
@@ -1176,7 +1238,28 @@ static void blit(surf_t *d, int dx, int dy, int dw, int dh, const td_pyui_image_
 {
     if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0)
         return;
-    if (!d->cells && !d->mask && !img->mask && d->px != img->px) {
+    if(d->rgb&&!d->px&&!d->cells&&!d->mask&&img->rgb&&d->rgb!=img->rgb){
+        int x0=dx<0?-dx:0,x1=dw<d->w-dx?dw:d->w-dx;
+        int y0=dy<0?-dy:0,y1=dh<d->h-dy?dh:d->h-dy;
+        if(x1<=x0||y1<=y0)return;
+        int previous=-1;bool opaque=false;uint16_t *last=NULL;
+        for(int y=y0;y<y1;y++){
+            int iy=sy+(int)((long)y*sh/dh);
+            const uint16_t *src=img->rgb+(size_t)iy*img->w;
+            const uint8_t *mask=img->mask?img->mask+(size_t)iy*img->w:NULL;
+            uint16_t *dst=d->rgb+(size_t)(dy+y)*d->w+dx+x0;
+            if(iy!=previous){opaque=true;if(mask)for(int x=sx;x<sx+sw;x++)if(mask[x]){opaque=false;break;}}
+            if(iy==previous&&last&&opaque)memcpy(dst,last,(size_t)(x1-x0)*sizeof(*dst));
+            else if(opaque&&sw==dw)memcpy(dst,src+sx+x0,(size_t)(x1-x0)*sizeof(*dst));
+            else for(int x=x0;x<x1;x++){
+                int ix=sx+(int)((long)x*sw/dw);
+                if(opaque||!mask[ix])dst[x-x0]=src[ix];
+            }
+            previous=iy;last=dst;
+        }
+        return;
+    }
+    if (!d->rgb && !d->cells && !d->mask && !img->mask && d->px != img->px) {
         int x0=dx<0?-dx:0,x1=dw<d->w-dx?dw:d->w-dx;
         int y0=dy<0?-dy:0,y1=dh<d->h-dy?dh:d->h-dy;
         if(x1<=x0||y1<=y0)return;
@@ -1191,7 +1274,9 @@ static void blit(surf_t *d, int dx, int dy, int dw, int dh, const td_pyui_image_
         }
         return;
     }
-    for (int y = 0; y < dh; y++)
+    int y0=dy<0?-dy:0,y1=dh<d->h-dy?dh:d->h-dy;
+    int x0=dx<0?-dx:0,x1=dw<d->w-dx?dw:d->w-dx;
+    for (int y = y0; y < y1; y++)
     {
         int ty = dy + y;
         if (ty < 0 || ty >= d->h)
@@ -1199,11 +1284,13 @@ static void blit(surf_t *d, int dx, int dy, int dw, int dh, const td_pyui_image_
         int iy = sy + (int)((long)y * sh / dh);
         const uint8_t *row = img->px + (size_t)iy * (size_t)img->w;
         const uint8_t *mrow = img->mask ? img->mask + (size_t)iy * (size_t)img->w : NULL;
-        for (int x = 0; x < dw; x++)
+        for (int x = x0; x < x1; x++)
         {
             int ix = sx + (int)((long)x * sw / dw);
-            if (!mrow || !mrow[ix])
+            if (!mrow || !mrow[ix]){
                 plot(d, dx + x, ty, row[ix]);
+                if(d->rgb&&img->rgb&&dx+x>=0&&dx+x<d->w)d->rgb[(size_t)ty*d->w+dx+x]=img->rgb[(size_t)iy*img->w+ix];
+            }
         }
     }
 }
@@ -1363,6 +1450,13 @@ static void pixel_request(obj_t *o, const td_pyui_msg_t *m, const char *text)
     }
     if (o->kind == K_CANVAS && o->draw == o->show)
         td_win_invalidate(NULL);
+    if(o->kind==K_IMAGE){
+        for(int i=0;i<MAX_PICS;i++)if(s_link->pics[i].used&&s_link->pics[i].img==o->id){
+            s_link->pics[i].serial=++s_link->pic_serial;
+            s_link->pics[i].cache.generation=0;s_link->pics[i].warm_attempted=false;
+        }
+        td_win_invalidate(NULL);
+    }
 }
 
 /* An image the script made: the desktop keeps it under its id. */
@@ -1451,17 +1545,25 @@ static void drop_picture(pic_t *p)
 
 /* Forget the pictures of a canvas page that overlap cells x0..x1, y0..y1
  * (exclusive ends); page -1: every page; o NULL: those of image img. */
-static void cut_pictures(const obj_t *o, int page, int x0, int y0, int x1, int y1)
+static void cut_picture_region(const obj_t *o, int page, int x0, int y0, int x1, int y1,bool overlay)
 {
     for (int i = 0; i < MAX_PICS; i++)
     {
         pic_t *p = &pictures()[i];
         if (!p->used || p->canvas != o->id || (page >= 0 && p->page != page))
             continue;
-        if (p->x < x1 && x0 < p->x + p->w && p->y < y1 && y0 < p->y + p->h)
+        if (p->x < x1 && x0 < p->x + p->w && p->y < y1 && y0 < p->y + p->h){
+            /* A native image can cover only part of a panel's corner/edge.
+             * Retain that unlabelled background behind it; clearing/drawing
+             * primitives and replacing a complete rectangle still erase it. */
+            if(overlay&&!p->text&&!(x0<=p->x&&y0<=p->y&&x1>=p->x+p->w&&y1>=p->y+p->h))continue;
             drop_picture(p);
+        }
     }
 }
+
+static void cut_pictures(const obj_t *o,int page,int x0,int y0,int x1,int y1)
+{cut_picture_region(o,page,x0,y0,x1,y1,false);}
 
 static void drop_image_pictures(uint16_t img)
 {
@@ -1520,7 +1622,7 @@ static void render_picture(void *user, uint8_t *px, int w, int h)
             px[y * w + x] = c;
         }
     }
-    surf_t s = {px, NULL, w, h, NULL, 0};
+    surf_t s = {px, NULL, w, h, NULL, 0,NULL};
     if (io && io->kind == K_IMAGE)
     {
         int sx, sy, sw, sh;
@@ -1544,6 +1646,144 @@ static void render_picture(void *user, uint8_t *px, int w, int h)
     }
 }
 
+static void paint_picture_rgb(void *user,uint16_t *px,int w,int h)
+{
+    const pic_t *p=user;const obj_t *co=find(p->canvas),*io=find(p->img);
+    uint16_t bg=td_palette_rgb565(p->font&&!p->img&&p->font_bg>=0?(uint8_t)p->font_bg:td_theme()->win_bg);
+    int previous=-1;
+    for(int y=0;y<h;y++){
+        int cy=2*p->y+y*2*p->h/h;
+        if(cy==previous){memcpy(px+(size_t)y*w,px+(size_t)(y-1)*w,(size_t)w*sizeof(*px));continue;}
+        previous=cy;
+        for(int x=0;x<w;x++){
+        int cx=2*p->x+x*2*p->w/w,cy=2*p->y+y*2*p->h/h;uint16_t c=bg;
+        if(p->font&&!p->img&&p->font_bg!=TD_PYUI_CLEAR)c=bg;
+        else if(p->bg&&cx>=p->bg->x&&cy>=p->bg->y&&cx<p->bg->x+p->bg->w&&cy<p->bg->y+p->bg->h){
+            size_t at=(size_t)(cy-p->bg->y)*p->bg->w+cx-p->bg->x;
+            c=p->bg->rgb?p->bg->rgb[at]:td_palette_rgb565(p->bg->px[at]);
+        }else if(co&&co->px&&cx>=0&&cy>=0&&cx<2*co->rect.w&&cy<2*co->rect.h){
+            size_t at=(size_t)cy*2*co->rect.w+cx;
+            c=co->rgb?canvas_rgb(co,p->page)[at]:td_palette_rgb565(canvas_layer(co,p->page)[at]);
+        }
+        px[(size_t)y*w+x]=c;
+        }
+    }
+    surf_t s={NULL,NULL,w,h,NULL,0,px};
+    if(io&&io->kind==K_IMAGE){
+        int sx,sy,sw,sh;picture_part(p,io->img,&sx,&sy,&sw,&sh);
+        if(p->nine)nine(&s,0,0,w,h,io->img,sx,sy,sw,sh,p->part.border);
+        else blit(&s,0,0,w,h,io->img,sx,sy,sw,sh);
+    }
+    if(p->text&&p->text->text[0]){
+        const obj_t *fo=find(p->font);
+        if(fo&&fo->kind==K_FONT)td_font_draw_rgb(&fo->font->face,p->text->text,px,w,h,(uint8_t)p->part.fg,p->font_flags&3,(p->font_flags>>2)&3,(p->font_flags&16)!=0);
+        else{int sc=label_scale(p,w,h),tw=8*sc*td_utf8_len(p->text->text);pixel_text(&s,(w-tw)/2,(h-16*sc)/2,p->text->text,p->part.fg,TD_PYUI_CLEAR,sc,false);}
+    }
+}
+
+static bool ensure_render_cache(void)
+{
+    if(td_pcache_ready())return true;
+    if(!s_link->cache_limit||!td_pyui_rgb_enabled())return false;
+    const td_sysinfo_t *si=td_sysinfo();
+    if(si&&si->psram_free&&si->psram_free()<786432)return false;
+    td_pcache_config(s_link->cache_limit);
+    return td_pcache_ready();
+}
+
+static void render_picture_rgb(void *user,uint16_t *px,int w,int h)
+{
+    pic_t *p=user;uint16_t theme=(uint16_t)((uint16_t)td_theme()->win_bg<<8|td_theme()->win_fg);
+    if(p->cache_theme!=theme){p->cache.generation=0;p->cache_theme=theme;}
+    uint32_t start=td_millis();
+    if(ensure_render_cache()&&td_pcache_load(p->cache,px,w,h)){
+        atomic_fetch_add(&s_decode_ms,td_millis()-start);return;
+    }
+    paint_picture_rgb(user,px,w,h);
+    atomic_fetch_add(&s_raster_ms,td_millis()-start);
+    const obj_t *io=find(p->img);
+    if(p->bg||(io&&io->img&&!io->img->mask)||(p->font&&p->font_bg!=TD_PYUI_CLEAR))
+        td_pcache_store(&p->cache,px,w,h);
+    p->warm_attempted=true;
+}
+
+static bool cached_picture_runs(void *user,int w,int h,const uint16_t **runs,size_t *words)
+{
+    pic_t *p=user;
+    uint16_t theme=(uint16_t)((uint16_t)td_theme()->win_bg<<8|td_theme()->win_fg);
+    return p->cache_theme==theme&&td_pcache_view(p->cache,w,h,runs,words);
+}
+
+static void warm_render_cache(void)
+{
+    if(!s_link->cache_warm||!td_pcache_ready()||s_link->batch_depth||ring_used(&s_link->req)||td_wm_needs_redraw())return;
+    int cw,ch;td_term_cell_px(&cw,&ch);if(cw<1||ch<1)return;
+    for(int n=0;n<MAX_PICS;n++){
+        pic_t *p=&s_link->pics[s_link->warm_cursor++%MAX_PICS];
+        if(!p->used||p->warm_attempted)continue;
+        obj_t *co=find(p->canvas),*wo=co?find(co->win):NULL;
+        if(!co||co->show==p->page||!wo||wo->w!=td_win_focused())continue;
+        p->warm_attempted=true;
+        size_t bytes=(size_t)p->w*cw*p->h*ch*sizeof(uint16_t);
+        if(bytes>163840)continue;
+        uint16_t *rgb=malloc(bytes);if(!rgb)return;
+        render_picture_rgb(p,rgb,p->w*cw,p->h*ch);free(rgb);td_pcache_warmed();
+        return;
+    }
+}
+
+static void cover_picture(const obj_t *o,const pic_t *p,int row,uint8_t covered[TD_MAX_COLS])
+{
+        if(!p->used||p->canvas!=o->id||p->page!=o->show||p->y>=row+2||p->y+p->h<=row)return;
+        if(p->x<0||p->y<0||p->x+p->w>o->rect.w||p->y+p->h>o->rect.h)return;
+        unsigned bits=(p->y<=row&&p->y+p->h>row?1u:0u)|(p->y<=row+1&&p->y+p->h>row+1?2u:0u);
+        int end=p->x+p->w;if(end>o->rect.w)end=o->rect.w;if(end>TD_MAX_COLS)end=TD_MAX_COLS;
+        for(int x=p->x<0?0:p->x;x<end;x++)covered[x]|=(uint8_t)bits;
+}
+static void canvas_picture_coverage(const obj_t *o,int row,uint8_t covered[TD_MAX_COLS])
+{memset(covered,0,TD_MAX_COLS);for(int i=0;i<MAX_PICS;i++)cover_picture(o,&s_link->pics[i],row,covered);}
+static void ordered_coverage(const obj_t *o,pic_t *const *pics,int count,int row,uint8_t covered[TD_MAX_COLS])
+{memset(covered,0,TD_MAX_COLS);for(int i=0;i<count;i++)cover_picture(o,pics[i],row,covered);}
+
+static void render_canvas_rgb_region(void *user,uint16_t *px,int w,int h,bool check_coverage)
+{
+    uintptr_t token=(uintptr_t)user;const obj_t *o=find((uint16_t)token);
+    int row=(int)((token>>16)&255u),col=(int)((token>>24)&255u),cw,ch;
+    td_term_cell_px(&cw,&ch);
+    const uint16_t *rgb=canvas_rgb(o,o->show);const cell_t *cells=canvas_page(o,o->show);
+    int previous=-1;
+    for(int y=0;y<h;y++){
+        int cy=2*row+y*2/ch;uint16_t *line=px+(size_t)y*w;
+        if(cy==previous){memcpy(line,line-w,(size_t)w*sizeof(*line));continue;}
+        previous=cy;
+        for(int cx=2*col;cx<2*col+2*w/cw;cx++){
+            const cell_t *c=&cells[(cy/2)*o->rect.w+cx/2];
+            uint16_t color=c->ch!=PX_CELL&&c->bg!=TD_PYUI_CLEAR?td_palette_rgb565(cell_bg(c)):rgb[cy*2*o->rect.w+cx];
+            int end=(cx-2*col+1)*cw/2;
+            for(int x=(cx-2*col)*cw/2;x<end;x++)line[x]=color;
+        }
+    }
+    surf_t s={NULL,NULL,w,h,NULL,0,px};
+    uint8_t covered[TD_MAX_COLS]={0};if(check_coverage)canvas_picture_coverage(o,row,covered);
+    for(int y=row;y<o->rect.h&&y<row+h/ch;y++)for(int x=col;x<col+w/cw;x++){
+        if(x<TD_MAX_COLS&&(covered[x]&(1u<<(y-row))))continue;
+        const cell_t *c=&cells[y*o->rect.w+x];
+        if(c->ch&&c->ch!=' '&&c->ch!=PX_CELL){uint8_t text[5]={0};td_utf8_encode(c->ch,text);pixel_text(&s,(x-col)*cw+(cw-8)/2,(y-row)*ch+(ch-16)/2,(const char *)text,c->fg<0?td_theme()->win_fg:c->fg,TD_PYUI_CLEAR,1,false);}
+    }
+}
+static void render_canvas_rgb(void *user,uint16_t *px,int w,int h)
+{render_canvas_rgb_region(user,px,w,h,true);}
+static void render_canvas_sparse_rgb(void *user,uint16_t *px,int w,int h)
+{render_canvas_rgb_region(user,px,w,h,false);}
+
+static void render_canvas_fallback(void *user,uint8_t *px,int w,int h)
+{
+    uintptr_t token=(uintptr_t)user;const obj_t *o=find((uint16_t)token);
+    int row=(int)((token>>16)&255u),col=(int)((token>>24)&255u),cw,ch;td_term_cell_px(&cw,&ch);
+    const uint8_t *src=canvas_layer(o,o->show);
+    for(int y=0;y<h;y++)for(int x=0;x<w;x++)px[y*w+x]=src[(2*row+y*2/ch)*2*o->rect.w+2*col+x*2/cw];
+}
+
 /* A picture in a canvas's pixels (dx, dy, dw x dh of them): drawn at FB
  * pixels to each canvas pixel (as a screen would), then each block averaged
  * to the nearest palette colour, so curves and gradients come out clean
@@ -1554,38 +1794,43 @@ static void picture_fallback(surf_t *d, int dx, int dy, int dw, int dh, const td
                              int sw, int sh, int border)
 {
     int w = dw * FB, h = dh * FB;
-    uint8_t *px = malloc((size_t)w * (size_t)h * 2);
-    if (!px)
+    /* Downsample one logical row at a time. A full temporary enlarged
+     * image can otherwise exceed the remaining PSRAM during a page change. */
+    size_t count=(size_t)w*FB;
+    uint8_t *allocation = malloc(count*(d->rgb?4:2));
+    if (!allocation)
         return;
-    uint8_t *mask = px + (size_t)w * (size_t)h;
-    memset(mask, 1, (size_t)w * (size_t)h);
-    surf_t s = {px, mask, w, h, NULL, 0};
-    if (border >= 0)
-        nine(&s, 0, 0, w, h, img, sx, sy, sw, sh, border);
-    else
-        blit(&s, 0, 0, w, h, img, sx, sy, sw, sh);
+    uint8_t *px=allocation+(d->rgb?count*2:0);
+    uint8_t *mask = px + count;
+    surf_t s = {px, mask, w, FB, NULL, 0,d->rgb?(uint16_t *)allocation:NULL};
     for (int ty = 0; ty < dh; ty++)
     {
+        memset(mask,1,count);
+        if(border>=0)nine(&s,0,-ty*FB,w,h,img,sx,sy,sw,sh,border);
+        else blit(&s,0,-ty*FB,w,h,img,sx,sy,sw,sh);
         for (int tx = 0; tx < dw; tx++)
         {
             int sum[3] = {0, 0, 0}, n = 0;
-            for (int y = ty * FB; y < (ty + 1) * FB; y++)
+            for (int y = 0; y < FB; y++)
                 for (int x = tx * FB; x < (tx + 1) * FB; x++)
                 {
                     size_t i = (size_t)y * (size_t)w + (size_t)x;
                     if (mask[i])
                         continue;
                     uint8_t rgb[3];
-                    td_palette_rgb(px[i], rgb);
+                    if(s.rgb)td_rgb565_rgb(s.rgb[i],rgb);else td_palette_rgb(px[i], rgb);
                     for (int k = 0; k < 3; k++)
                         sum[k] += rgb[k];
                     n++;
                 }
-            if (n * 2 >= FB * FB)
+            if (n * 2 >= FB * FB){
                 plot(d, dx + tx, dy + ty, td_rgb256((uint8_t)(sum[0] / n), (uint8_t)(sum[1] / n), (uint8_t)(sum[2] / n)));
+                if(d->rgb&&dx+tx>=0&&dy+ty>=0&&dx+tx<d->w&&dy+ty<d->h)
+                    d->rgb[(dy+ty)*d->w+dx+tx]=td_rgb565((uint8_t)(sum[0]/n),(uint8_t)(sum[1]/n),(uint8_t)(sum[2]/n));
+            }
         }
     }
-    free(px);
+    free(allocation);
 }
 
 /* Terminal fallback stays inside the picture. Native pictures cover only
@@ -1668,7 +1913,8 @@ static void picture_request(obj_t *o, const td_pyui_msg_t *m, const char *text)
                 y1 = s.h;
             if (x1 <= x0 || y1 <= y0)
                 return;
-            long bytes = (long)(x1 - x0) * (y1 - y0);
+            long n=(long)(x1-x0)*(y1-y0);
+            long bytes=s.rgb?((n+1)&~1L)+2*n:n;
             if (!td_pyui_pixels_take(bytes))
             {
                 post(TD_PYUI_EV_ERROR, o->id, 0, 0, 0, 0, PIXELS_MSG);
@@ -1681,7 +1927,8 @@ static void picture_request(obj_t *o, const td_pyui_msg_t *m, const char *text)
                 post(TD_PYUI_EV_ERROR, o->id, 0, 0, 0, 0, "picture background: out of memory");
                 return;
             }
-            *bg = (pic_bg_t){.refs = 1, .x = x0, .y = y0, .w = x1 - x0, .h = y1 - y0};
+            *bg = (pic_bg_t){.refs = 1, .x = x0, .y = y0, .w = x1 - x0, .h = y1 - y0,.bytes=(size_t)bytes};
+            bg->rgb=s.rgb?(uint16_t *)(bg->px+((n+1)&~1L)):NULL;
             for (int y = 0; y < bg->h; y++)
                 for (int x = 0; x < bg->w; x++)
                 {
@@ -1689,6 +1936,7 @@ static void picture_request(obj_t *o, const td_pyui_msg_t *m, const char *text)
                     bg->px[y * bg->w + x] = cell->ch == PX_CELL || cell->bg == TD_PYUI_CLEAR
                                                 ? s.px[(y0 + y) * s.w + x0 + x]
                                                 : cell_bg(cell);
+                    if(bg->rgb)bg->rgb[y*bg->w+x]=cell->ch==PX_CELL||cell->bg==TD_PYUI_CLEAR?s.rgb[(y0+y)*s.w+x0+x]:td_palette_rgb565(cell_bg(cell));
                 }
         }
     }
@@ -1697,7 +1945,7 @@ static void picture_request(obj_t *o, const td_pyui_msg_t *m, const char *text)
         if (bg) { pic_t unused = {.bg=bg};release_picture(&unused); }
         post(TD_PYUI_EV_ERROR,o->id,0,0,0,0,"font label: out of memory");return;
     }
-    cut_pictures(o, o->draw, m->a, m->b, m->a + m->c, m->b + m->d);
+    cut_picture_region(o,o->draw,m->a,m->b,m->a+m->c,m->b+m->d,o->rgb!=NULL);
 
     /* For terminals without pictures: the same in the canvas's pixels, its
      * border scaled down as the picture is (a cell is 2 x 2 pixels here). */
@@ -1777,19 +2025,72 @@ static void copy_pictures(obj_t *o, int src, int dst)
     }
 }
 
+static void canvas_backdrop(const obj_t *o,td_rect_t client,int col,int row,int cols,int rows,bool sparse)
+{
+    uint32_t id=2166136261u^((uint32_t)o->id<<16)^((uint32_t)o->show<<8)^(uint32_t)row^((uint32_t)col<<24);
+    const uint16_t *rgb=canvas_rgb(o,o->show);const cell_t *cells=canvas_page(o,o->show);
+    for(int y=2*row;y<2*(row+rows);y++)for(int x=2*col;x<2*(col+cols);x++)id=(id^rgb[y*2*o->rect.w+x])*16777619u;
+    for(int y=row;y<row+rows;y++)for(int x=col;x<col+cols;x++){
+        const cell_t *c=&cells[y*o->rect.w+x];
+        id=(id^c->ch)*16777619u;id=(id^(uint16_t)c->fg)*16777619u;id=(id^(uint16_t)c->bg)*16777619u;
+    }
+    if(!sparse){
+        uint8_t covered[TD_MAX_COLS];canvas_picture_coverage(o,row,covered);
+        for(int x=col;x<col+cols&&x<TD_MAX_COLS;x++)id=(id^covered[x])*16777619u;
+    }
+    void *token=(void *)((uintptr_t)o->id|((uintptr_t)row<<16)|((uintptr_t)col<<24));
+    td_picture_add_rgb(client.x+o->rect.x+col,client.y+o->rect.y+row,cols,rows,id,render_canvas_fallback,sparse?render_canvas_sparse_rgb:render_canvas_rgb,token);
+}
+
 /* Keep the canvas fallback underneath while the terminal receives Sixel.
  * Clearing it to black first exposes a black rectangle on streaming LCDs. */
 static void show_pictures(const obj_t *o, td_rect_t client)
 {
     if (!td_term_images())
         return;
-    for (int i = 0; i < MAX_PICS; i++)
-    {
-        pic_t *p = &pictures()[i];
-        if (!p->used || p->canvas != o->id || p->page != o->show)
-            continue;
-        td_picture_add(client.x + o->rect.x + p->x, client.y + o->rect.y + p->y, p->w, p->h, p->serial, render_picture,
-                       p);
+    pic_t *ordered[MAX_PICS];int count=0;
+    for(int i=0;i<MAX_PICS;i++){
+        pic_t *p=&pictures()[i];if(!p->used||p->canvas!=o->id||p->page!=o->show)continue;
+        int at=count;while(at>0&&ordered[at-1]->serial>p->serial){ordered[at]=ordered[at-1];at--;}
+        ordered[at]=p;count++;
+    }
+    /* Local pictures already contain their exact underlay. Avoid expanding
+     * and copying a whole canvas only to overwrite most of it with panels.
+     * Preflight every span against the native-picture capacity; when it
+     * cannot fit, retain the bounded two-row background path. */
+    bool sparse=o->rgb&&td_picture_local_rgb()&&o->rect.w<=255&&o->rect.h<=255&&
+        client.x+o->rect.x>=0&&client.y+o->rect.y>=0&&
+        client.x+o->rect.x+o->rect.w<=td_stats()->cols&&client.y+o->rect.y+o->rect.h<=td_stats()->rows;
+    if(sparse){
+        int spans=0,uncovered_cells=0;
+        for(int row=0;row<o->rect.h;row++){
+            uint8_t covered[TD_MAX_COLS];ordered_coverage(o,ordered,count,row,covered);
+            bool was=false;
+            for(int x=0;x<o->rect.w;x++){
+                bool uncovered=!(covered[x]&1u);
+                if(uncovered)uncovered_cells++;
+                if(uncovered&&!was)spans++;
+                was=uncovered;
+            }
+        }
+        if(spans+count>td_pictures_available()||uncovered_cells*4>o->rect.w*o->rect.h*3)sparse=false;
+    }
+    if(sparse){
+        for(int row=0;row<o->rect.h;row++){
+            uint8_t covered[TD_MAX_COLS];ordered_coverage(o,ordered,count,row,covered);
+            for(int col=0;col<o->rect.w;){
+                while(col<o->rect.w&&(covered[col]&1u))col++;
+                int begin=col;
+                while(col<o->rect.w&&!(covered[col]&1u))col++;
+                if(col>begin)canvas_backdrop(o,client,begin,row,col-begin,1,true);
+            }
+        }
+    }else if(o->rgb)for(int row=0;row<o->rect.h;row+=2)
+        canvas_backdrop(o,client,0,row,o->rect.w,o->rect.h-row<2?o->rect.h-row:2,false);
+    for(int i=0;i<count;i++){
+        pic_t *p=ordered[i];
+        if(o->rgb)td_picture_add_rgb_runs(client.x+o->rect.x+p->x,client.y+o->rect.y+p->y,p->w,p->h,p->serial,render_picture,render_picture_rgb,cached_picture_runs,p);
+        else td_picture_add(client.x+o->rect.x+p->x,client.y+o->rect.y+p->y,p->w,p->h,p->serial,render_picture,p);
     }
 }
 
@@ -1887,7 +2188,8 @@ static void canvas_resize(obj_t *o, int w, int h)
         }
     }
     uint8_t *npx = NULL;
-    long bytes = 4L * w * h * o->pages;
+    long count=4L*w*h*o->pages;
+    long bytes = count*(o->rgb?3:1);
     if (o->px)
     {
         if (!td_pyui_pixels_take(bytes))
@@ -1915,10 +2217,17 @@ static void canvas_resize(obj_t *o, int w, int h)
             for (int y = 0; y < nh; y++)
                 for (int x = 0; x < nw; x++)
                     dst[y * nw + x] = x < ow && y < oh ? src[y * ow + x] : td_theme()->win_bg;
+            if(o->rgb){
+                uint16_t *to=(uint16_t *)(npx+count)+(size_t)p*nw*nh;
+                const uint16_t *from=canvas_rgb(o,p);
+                for(int y=0;y<nh;y++)for(int x=0;x<nw;x++)to[y*nw+x]=x<ow&&y<oh?from[y*ow+x]:td_palette_rgb565(td_theme()->win_bg);
+            }
         }
         td_pyui_pixels_give(o->px_bytes);
         free(o->px);
         o->px = npx;
+        o->rgb=td_pyui_rgb_enabled()?(uint16_t *)(npx+count):NULL;
+        o->rgb_serial=++s_link->pic_serial;
         o->px_bytes = bytes;
     }
     s_link->cells += cells - canvas_cells(o);
@@ -2124,6 +2433,15 @@ static void show_dialog(const td_pyui_msg_t *m, char *text)
 
 static void run_request(const td_pyui_msg_t *m, char *text)
 {
+    if(m->op==TD_PYUI_RENDER_CACHE){
+        s_link->cache_limit=TD_PYUI_MAX_CELLS>2000&&m->a>0?(size_t)(m->a>128?128:m->a)*1024:0;
+        s_link->cache_warm=(m->flags&1)!=0;
+        td_pcache_close();atomic_store(&s_raster_ms,0);atomic_store(&s_decode_ms,0);
+        td_picture_profile_reset();
+        for(int i=0;i<MAX_PICS;i++){s_link->pics[i].cache.generation=0;s_link->pics[i].warm_attempted=false;}
+        if(atomic_load(&s_pixels)>0)ensure_render_cache();
+        return;
+    }
     link_t *l = s_link;
     if (m->op == TD_PYUI_BATCH_BEGIN)
     {
@@ -2177,8 +2495,10 @@ static void run_request(const td_pyui_msg_t *m, char *text)
         return;   /* its window was closed in the meantime */
     }
     int cells[4];
-    if (o->kind == K_CANVAS && request_cells(o, m, text, cells))
+    if (o->kind == K_CANVAS && request_cells(o, m, text, cells)){
         cut_pictures(o, o->draw, cells[0], cells[1], cells[2], cells[3]);
+        o->rgb_serial=++s_link->pic_serial;
+    }
     td_widget_t *w = o->wd;
     switch (m->op)
     {
@@ -2316,6 +2636,8 @@ static void run_request(const td_pyui_msg_t *m, char *text)
             memcpy(canvas_page(o, m->b), canvas_page(o, m->a), (size_t)(o->rect.w * o->rect.h) * sizeof(cell_t));
             if (o->px)
                 memcpy(canvas_layer(o, m->b), canvas_layer(o, m->a), (size_t)layer_size(o));
+            if(o->rgb)memcpy(canvas_rgb(o,m->b),canvas_rgb(o,m->a),(size_t)layer_size(o)*sizeof(uint16_t));
+            o->rgb_serial=++s_link->pic_serial;
             copy_pictures(o, m->a, m->b);
         }
         if (m->b == o->show)
@@ -2359,6 +2681,7 @@ static void run_request(const td_pyui_msg_t *m, char *text)
 /* The script ended: close everything it opened. */
 static void close_all(void)
 {
+    td_pcache_close();
     td_frame_hold(0);
     s_link->batch_depth = 0;
     link_t *l = s_link;
@@ -2420,6 +2743,7 @@ static void tick(void *user)
     }
     poll_values();
     check_sizes();
+    warm_render_cache();
 }
 
 bool td_pyui_running(void)

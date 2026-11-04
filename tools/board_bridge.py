@@ -135,7 +135,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         return host in ('127.0.0.1', 'localhost') and allowed_origin(self.headers.get('Origin'))
 
     def authorized(self):
-        supplied = self.headers.get('X-Studio-Token', '')
+        supplied = self.headers.get('X-Builder-Token', '')
         return hmac.compare_digest(supplied.encode('utf-8'), self.server.token.encode('utf-8'))
 
     def respond(self, status, data, binary=False):
@@ -150,7 +150,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         if self.trusted() and (self.authorized() or self.command == 'OPTIONS') and origin is not None:
             self.send_header('Access-Control-Allow-Origin', origin)
             self.send_header('Vary', 'Origin')
-            self.send_header('Access-Control-Allow-Headers', 'X-Studio-Token, Content-Type')
+            self.send_header('Access-Control-Allow-Headers', 'X-Builder-Token, Content-Type')
             self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
             self.send_header('Access-Control-Allow-Private-Network', 'true')
         self.end_headers()
@@ -200,7 +200,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
 
     def dispatch(self):
         if not self.trusted() or not self.authorized():
-            self.reject(403, 'A valid X-Studio-Token and a local page origin are required.')
+            self.reject(403, 'A valid X-Builder-Token and a local page origin are required.')
             return
         parsed = urlsplit(self.path)
         path = parse_qs(parsed.query, keep_blank_values=True).get('path', [''])[0]
@@ -283,8 +283,8 @@ def main():
     if not 1 <= args.port <= 65535 or args.max_upload < 1:
         parser.error('Use a port from 1 to 65535 and a positive --max-upload byte count.')
     server = BridgeServer(args.port, max_upload=args.max_upload)
-    print('TinyDesk Studio bridge: http://127.0.0.1:%d' % server.server_port, flush=True)
-    print('Paste this token into Studio: %s' % server.token, flush=True)
+    print('TinyDesk App Builder board bridge: http://127.0.0.1:%d' % server.server_port, flush=True)
+    print('Paste this token into App Builder (Builder token): %s' % server.token, flush=True)
     print('Start FTP on your board with: ftp start (as root).', flush=True)
     try:
         server.serve_forever()

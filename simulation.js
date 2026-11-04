@@ -7,8 +7,8 @@
  dialog.innerHTML='<div class="modal-heading"><h2>Running app · TinyDesk / MicroPython</h2><button id="stopSimulation">Stop and edit</button></div><p id="simulationStatus" role="status"></p><div id="simulationTerminal"></div>';
  document.body.append(dialog);
  let terminal,cellCanvas,active=false,busy=false,timer,pending='',session=null,generation=0;
- const token=document.querySelector('meta[name="studio-simulation-token"]')?.content;
- const protocol=document.querySelector('meta[name="studio-simulation-protocol"]')?.content;
+ const token=document.querySelector('meta[name="builder-token"]')?.content;
+ const protocol=document.querySelector('meta[name="builder-protocol"]')?.content;
  const status=text=>dialog.querySelector('#simulationStatus').textContent=text;
  async function alignCellPixels(host,cols,rows,target,run){
   // Native image sizes and mouse coordinates use these exact cell pixels.
@@ -26,7 +26,7 @@
  }
  async function request(route,body={},id=session){
   const run=generation,target=terminal;
-  const r=await fetch('/simulation/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':token},body:JSON.stringify({...body,session:id}),signal:AbortSignal.timeout(20000)});
+  const r=await fetch('/simulation/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-Builder-Token':token},body:JSON.stringify({...body,session:id}),signal:AbortSignal.timeout(20000)});
   const value=await r.json();if(!r.ok)throw Error(value.error||'Simulation helper failed.');
   if(run===generation&&value.session)session=value.session;
   if(run===generation&&value.output&&terminal===target&&target){const raw=atob(value.output);await new Promise(resolve=>target.write(Uint8Array.from(raw,c=>c.charCodeAt(0)),resolve));}
@@ -61,8 +61,8 @@
  button.onclick=async()=>{
   const run=++generation;
   dialog.showModal();
-  if(!token){status('Start python tools/studio_simulator.py and open http://127.0.0.1:8773/ to run the real app. Save JSON here first, then import it there.');return;}
-  if(!['3','4'].includes(protocol)||design.colorMode==='rgb565'&&design.board>2000&&protocol!=='4'){status('Reload App Builder and restart python tools/studio_simulator.py to use current native RGB simulation frames. Your saved design is kept.');return;}
+  if(!token){status('Start python tools/builder_helper.py and open http://127.0.0.1:8773/ to run the real app. Save JSON here first, then import it there.');return;}
+  if(!['3','4'].includes(protocol)||design.colorMode==='rgb565'&&design.board>2000&&protocol!=='4'){status('Reload App Builder and restart python tools/builder_helper.py to use current native RGB simulation frames. Your saved design is kept.');return;}
   const validation=TD.validate(design);if(validation.errors.length){status(validation.errors.join(' '));return;}
   status('Starting the generated Python. Mouse, keyboard, pages and timers run in TinyDesk. Hardware UART and machine timing need board testing.');
   const host=dialog.querySelector('#simulationTerminal');host.replaceChildren();host.classList.remove('native-frame');cellCanvas=null;
@@ -78,5 +78,5 @@
  };
  dialog.querySelector('#stopSimulation').onclick=stop;
  dialog.oncancel=e=>{e.preventDefault();stop();};
- window.addEventListener('pagehide',()=>{if(active)fetch('/simulation/stop',{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':token},body:JSON.stringify({session}),keepalive:true});});
+ window.addEventListener('pagehide',()=>{if(active)fetch('/simulation/stop',{method:'POST',headers:{'Content-Type':'application/json','X-Builder-Token':token},body:JSON.stringify({session}),keepalive:true});});
 })();

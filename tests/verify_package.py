@@ -51,4 +51,10 @@ with tempfile.TemporaryDirectory(prefix='tdapp-test-') as tmp:
     subprocess.run([str(runtime),'wait=500','key=Enter','wait=700','type=py -m 512 /root/failed.tdapp\\r','wait=1700'],cwd=tmp,capture_output=True,timeout=12,check=True)
     errors=list(fs.glob('.tdapp-*/startup-error.txt'))
     assert len(errors)==1 and 'RuntimeError: startup diagnostic test' in errors[0].read_text(), 'Kiosk startup failures must leave an inspectable traceback'
-print('PASS: TDAPP round trip, bundled module/image, checksum rejection and actual MicroPython launch.')
+    # An app that needs a newer tdui stops before unpacking, saying what to do.
+    newer=build(compiler,{**project,'name':'newer_test'},"open('ran.txt','w').write('x')",api_minor=99)
+    assert inspect(newer)[0]['runtime']['apiMinor']==99
+    (fs/'newer.tdapp').write_bytes(newer)
+    shot=subprocess.run([str(runtime),'wait=500','key=Enter','wait=700','type=py -m 512 /root/newer.tdapp\\r','wait=1700','shot'],cwd=tmp,capture_output=True,timeout=12,check=True)
+    assert b'Update TinyDesk' in shot.stdout and not list(fs.glob('.tdapp-*/ran.txt')),shot.stdout.decode(errors='replace')[-2000:]
+print('PASS: TDAPP round trip, bundled module/image, checksum rejection, actual MicroPython launch and the tdui version check.')

@@ -1,0 +1,10 @@
+# LF everywhere, also in Windows checkouts: tests compare generated code
+# with the fixtures byte for byte, and vendor/tinydesk is checked by hash.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.ppm binary
+*.bmp binary
+*.mpy binary
+*.tdapp binary
+*.tdfont binary

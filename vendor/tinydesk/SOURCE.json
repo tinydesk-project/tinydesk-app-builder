@@ -1,0 +1,24 @@
+{
+  "repository": "https://github.com/tinydesk-project/tinydesk",
+  "commit": "a45a53dcce4f405a8c216ebc0827bcfb357bb709",
+  "describe": "v0.2.0-18-ga45a53d",
+  "modified": false,
+  "files": {
+    "tdui_contract.json": {
+      "from": "ports/common/python/tdui_contract.json",
+      "sha256": "e48af7754ceb4dce826c37794af563ff31dcaf81f5696ce64f328ac6634678dc"
+    },
+    "tdui.py": {
+      "from": "ports/common/python/modules/tdui.py",
+      "sha256": "4aadcddc2c05176d1d9ced7be1f1cc604cb72a9415fed96b74c7f9c3c2c620aa"
+    },
+    "pyui.c": {
+      "from": "apps/pyui.c",
+      "sha256": "2539b6dec589b5161cce6b0b27a9e25bc7a41ab5c35544d96fb02cb12cb40952"
+    },
+    "tdsh_ftp.c": {
+      "from": "third_party/tdsh/ports/esp_idf/components/tdsh/src/tdsh_ftp.c",
+      "sha256": "5a3f60c4f6bcf30e135ff1854cae86916cdb76364a756878f2ef93fd8a55b292"
+    }
+  }
+}

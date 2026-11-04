@@ -8,7 +8,7 @@ import tempfile
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
 from app_package import build, inspect, compile_source, mpy_arch
-from studio_simulator import Simulation
+from builder_helper import Simulation
 compiler=max((root.parent/'tinydesk').glob('build*/compiler/mpy_cross/mpy-cross.exe'),key=lambda p:p.stat().st_mtime)
 runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
 source='def compute(x):\n return x*x+1\nprint(compute(4))\n'

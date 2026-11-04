@@ -8,7 +8,7 @@ import tempfile
 import time
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
-from studio_simulator import Simulation
+from builder_helper import Simulation
 sim=Simulation(max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime))
 source=(root/'examples/instrument_panel.py').read_text(encoding='utf-8')
 probe='''
@@ -50,7 +50,7 @@ process.stdout.write(JSON.stringify({source:T.generate(d,{bundle:true}),assets:d
     image_source=image_source.replace('\ntdui.run()',"\nwith open('/root/image_loaded.txt','w') as f: f.write('OK')\ntdui.run()")
     sim.start({**image_project,'source':image_source,'cols':80,'rows':24,'protocol':2})
     assert (Path(sim.work.name)/'tinydesk_fs/root/image_loaded.txt').read_text()=='OK'
-    with tempfile.TemporaryDirectory(prefix='studio-external-') as directory:
+    with tempfile.TemporaryDirectory(prefix='tdab-external-') as directory:
         (Path(directory)/'test.ppm').write_bytes(base64.b64decode(asset['data']))
         sim.project_dirs=[Path(directory)]
         sim.start({**image_project,'source':image_source,'cols':80,'rows':24,

@@ -11,16 +11,14 @@ from collections import deque
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / 'tests' / 'fixtures'
-SOURCE = ROOT / 'reference/tdui.py'
-SNAPSHOT = ROOT / 'tests/reference/tdui.py'
-assert SOURCE.read_bytes() == SNAPSHOT.read_bytes(), 'Refresh the bundled API snapshot'
+SOURCE = ROOT / 'vendor/tinydesk/tdui.py'   # the pinned firmware (tools/sync_tinydesk.py)
 OLD_SOURCE = ROOT / 'tests/reference/tdui_0.2.0.py'
 
 # Expectations come from the supplied C table, independently of core.js.
 import re
 FONT = {m[0]: re.findall(r'"([.#]+)"', m[1]) for m in re.findall(
     r"\{'(.)', \{((?:\"[.#]+\"(?:, )?){5})\}\}",
-    (ROOT / 'reference/pyui.c').read_text())}
+    (ROOT / 'vendor/tinydesk/pyui.c').read_text())}
 assert len(FONT) == 44
 
 

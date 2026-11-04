@@ -3,8 +3,8 @@
     'use strict';
     const root=document.documentElement,main=document.querySelector('main'),workspace=document.querySelector('.workspace');
     const defaults={left:208,right:274,code:242,components:270,leftCollapsed:false,rightCollapsed:false,codeCollapsed:false,codeFloating:false};
-    const state={...defaults},key='tinydesk-studio-layout';
-    try{const saved=JSON.parse(localStorage.getItem(key));if(saved&&typeof saved==='object')for(const k of Object.keys(defaults)){
+    const state={...defaults},key='tdab.layout';
+    try{const saved=JSON.parse(localStorage.getItem(key)??localStorage.getItem('tinydesk-studio-layout'));if(saved&&typeof saved==='object')for(const k of Object.keys(defaults)){
         if(typeof defaults[k]==='boolean'&&typeof saved[k]==='boolean')state[k]=saved[k];
         else if(typeof defaults[k]==='number'&&Number.isFinite(saved[k]))state[k]=Math.max(k==='code'||k==='components'?120:180,Math.min(1200,saved[k]));
     }}catch(e){/* Defaults work with missing, corrupt or disabled storage. */}
@@ -75,6 +75,6 @@
     let wasSmall=window.innerWidth<900;
     window.addEventListener('resize',()=>{const small=window.innerWidth<900;if(small&&!wasSmall)state.leftCollapsed=state.rightCollapsed=true;wasSmall=small;apply();});
     new ResizeObserver(apply).observe(main);new ResizeObserver(apply).observe(workspace);
-    window.StudioLayout={toggle,expandCode(){state.codeCollapsed=false;state.codeFloating=true;state.code=state.code>defaults.code?defaults.code:workspace.clientHeight*.55;apply();save();}};
+    window.BuilderLayout={toggle,expandCode(){state.codeCollapsed=false;state.codeFloating=true;state.code=state.code>defaults.code?defaults.code:workspace.clientHeight*.55;apply();save();}};
     apply();
 })();

@@ -3,7 +3,7 @@ from pathlib import Path
 import json,sys,subprocess,tempfile,base64
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
-from studio_simulator import Simulation
+from builder_helper import Simulation
 with tempfile.TemporaryDirectory() as folder:
     project=Path(folder)/'project.json';source=Path(folder)/'app.py'
     script='''const TD=require('./core.js'),fs=require('fs');const d=TD.initial(),w=d.windows[0];

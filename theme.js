@@ -1,10 +1,10 @@
 /* Editor appearance is a device preference, independent of the exported design. */
 (function(){
     'use strict';
-    const key='tinydesk-studio-appearance';
+    const key='tdab.appearance';
     const system=window.matchMedia('(prefers-color-scheme: dark)');
     let saved=null;
-    try{saved=localStorage.getItem(key);}catch(e){/* file:// storage can be disabled. */}
+    try{saved=localStorage.getItem(key)??localStorage.getItem('tinydesk-studio-appearance');}catch(e){/* file:// storage can be disabled. */}
     let explicit=saved==='dark'||saved==='light';
     function apply(theme){
         document.documentElement.dataset.uiTheme=theme;

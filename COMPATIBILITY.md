@@ -1,81 +1,94 @@
-# Compatibility contract
+# Compatibility
 
-App Builder 0.6.0 records independent versions rather than coupling apps to the
-editor release:
+An app made with App Builder must keep running when App Builder or TinyDesk
+is updated. So the editor's version is not what an app depends on: it
+depends on a few contracts, each with its own number.
 
-| Contract | Current | Meaning |
+| Contract | Now | What it covers |
 | --- | --- | --- |
-| App Builder | 0.6.0 | Editor/generator release |
-| Project schema | 1 | Editable JSON structure; existing schema-1 fixtures remain supported |
-| Application | User-controlled semantic version | Version of your design/behavior |
-| TDAPP package | 1 | Binary container and checked-file manifest |
-| tdui API contract | 1 | Existing TinyDesk drawing/event primitives |
-| MicroPython bytecode ABI | 6.3 | Portable bytecode from MicroPython 1.29 |
-| Local simulation helper | 3 | Frontend/helper protocol; requires tdsim native cell capture (TDCF 1) |
+| App Builder | see `version.js` | the editor and generator; its own SemVer releases |
+| Project schema | 1 | the editable JSON; older schema-1 files stay readable |
+| Application | the app's own SemVer | your design and behaviour (Export options) |
+| TDAPP package | 1 | the container and its checked-file manifest |
+| tdui API | 1.0 | the TinyDesk drawing and event requests the app uses |
+| MicroPython bytecode | 6.3 | `.mpy` from MicroPython 1.29 |
+| Local helper protocol | 4 | the page and `tools/builder_helper.py` (RGB simulation frames) |
 
-An exported application contains its generated layout, field helpers and
-callbacks. It runs without Studio or the simulation service. Existing
-`.py`/`.mpy` workflows remain supported. Studio updates do not silently
-rewrite an app already installed on a board.
+## Which firmware runs which app
 
-Portable bytecode remains the default. Optional native exports record
-`project.compilation` and `runtime.native` with CPU architecture, ABI 6.3 and
-the root requirement. The TDAPP bootstrap remains portable and rejects a wrong
-CPU/ABI before extraction. Native dependencies are preserved without executing
-them during import; mixing Xtensa and RISC-V modules in one app is rejected.
-ESP32/S3/CrowPanel use `xtensawin`; C6 uses `rv32imc` without optional ISA flags.
-This release adds no arbitrary raw-binary loader or direct C API linker.
+TinyDesk writes its side down in `ports/common/python/tdui_contract.json`;
+App Builder pins a copy in `vendor/tinydesk/` (see
+`tools/sync_tinydesk.py`) and checks every export against that firmware's
+`tdui.py`.
 
-The native cell snapshot and its browser renderer are development tools.
-They do not change the firmware drawing API or a packaged application's
-runtime requirements. TDCF 1 has a 16-byte header (`TDCF`, version 1, reserved,
-little-endian columns/rows/cursor X/Y, cursor-visible flag, reserved), then
-one four-byte cell per row/column (UTF-16 codepoint LE, palette FG, palette BG).
+* **Firmware runs every package whose format it knows (1) and whose tdui
+  API major number it has (1), whichever App Builder version made it.**
+  Within API 1 nothing is removed or changes meaning; requests, widgets
+  and events keep their numbers.
+* **Additions** raise the API's minor number or add a capability
+  (`tdui.CAPABILITIES`: `gradient_fills`, `rgb_pictures`). A package
+  lists what it needs (`runtime.apiMinor`, `runtime.capabilities`,
+  `runtime.features`); its bootstrap checks them before it unpacks
+  anything and stops with "Update TinyDesk…" on older firmware. Firmware
+  from before `tdui.API` counts as 1.0 with the `SUPPORTS_` flags.
+* **A new major API number** (2) would come with a TinyDesk major
+  release, and that release and the next one keep running API-1 apps.
+  Until TinyDesk 1.0 the API stays 1.
+* **Bytecode** is the part outside TinyDesk's control: a MicroPython
+  release with another `.mpy` version needs apps compiled again. Version 6
+  has held since MicroPython 1.19; TinyDesk changes it only in a major
+  release and says so in its changelog. Keep the project JSON (or the
+  `.tdapp`, which contains it) to export again.
+* **App Builder** reads every older schema-1 project and `.tdapp`. A
+  newer schema needs a migration in the editor, never a firmware change.
 
-`provenance.createdWith` and `lastEditedWith` identify editor versions;
-`application.version` is editable in Export options. The package manifest
-records these versions, runtime capabilities and SHA-256 for every entry.
-Identical inputs and compiler produce identical packages. App checksums
-detect corruption; they are not signatures or a trust mechanism.
+Native-code exports (`project.compilation`, `runtime.native`) record the
+CPU (`xtensawin` for ESP32, ESP32-S3 and CrowPanel; `rv32imc` for the
+ESP32-C6), ABI 6.3 and the need for root; the bootstrap rejects another
+CPU or ABI before unpacking, and mixing CPUs in one app is refused.
+Portable bytecode is the default and runs everywhere.
 
-Importing a `.tdapp` recovers JSON and image assets without executing code.
-Compiled dependency modules are preserved for another export. Their Python
-source is not reconstructed: retain original source to change a dependency's
-internal implementation. Layouts and exported handler bodies remain editable.
+## TDAPP v1
 
-The runtime checks required drawing capabilities and bytecode major version
-before installing package files. Future firmware with a different bytecode
-ABI may require recompilation. It must keep API-1 behavior or explicitly
-reject unsupported contracts; a promise of compatibility with every future
-firmware would be misleading. New Studio controls can require a newer editor
-even when they generate calls to the same underlying drawing API.
+A TDAPP begins with an ordinary portable MicroPython bootstrap, so
+TinyDesk's `py` runs it like an `.mpy`. The payloads follow; then a UTF-8
+JSON manifest (names, offsets, sizes, SHA-256); the last 16 bytes are
+ASCII `TDAPP001`, the manifest's offset and its length (little-endian).
+Paths are flat, bounded and checked; at most 16 MiB and 128 entries. The
+bootstrap verifies every entry in 1 KiB blocks and unpacks into a
+revision-specific cache beside the app (`.tdapp-<hash>`), so one file is
+distributed and the cache takes file-system space. Checksums detect
+corruption; they are not signatures.
 
-Before a release, run the canonical JSON/Python round trips, old and current
-tdui fixtures, real control-event tests, deterministic package/integrity
-tests and real simulation tests. Preserve those fixtures when evolving the
-schema or generator; introduce explicit migrations for incompatible changes.
+The manifest's `studio` field is the App Builder version that last edited
+the project (the field keeps its first name: renaming it would change
+format 1). `application` is the app's name and version; `projectSchema`
+and `runtime` are as above; `startup` describes kiosk artwork.
 
-TDAPP v1 begins with an ordinary portable MicroPython bootstrap. Payloads
-follow it; a UTF-8 JSON manifest lists names, offsets, lengths and hashes.
-The final 16 bytes are ASCII `TDAPP001`, little-endian manifest offset and
-little-endian manifest length. Paths are flat, bounded and checked. TinyDesk
-streams verification and unpacking in 1 KiB blocks into a revision-specific
-cache beside the app. Distribution is one file; execution uses filesystem
-space for that cache. The container limit is 16 MiB / 128 entries. Board flash,
-heap, canvas and image budgets still determine what an app can use.
+Importing a `.tdapp` recovers the JSON and images without running code.
+Compiled dependency modules are kept for the next export; their Python
+source is not rebuilt, so keep it to change them.
 
-Generated bitmap fonts are an additive API-1 capability. Projects use the
-`font_text` drawing operation, or a `font: {path: ...}` reference on a button
-or picture. Font assets use the immutable, validated TDFONT01 format. The
-package declares the `font_text` runtime feature; the bootstrap and exported
-Python reject firmware without this API before opening the app. Schema-1
-projects without generated fonts keep their existing behavior. Font files
-remain usable across editor updates without the original TTF/OTF installed.
+## Fonts and fills
 
-Gradient shape/control fills are another additive API-1 capability. New
-exports check `tdui.SUPPORTS_GRADIENT_FILLS`; their TDAPP manifests add
-`runtime.capabilities: ["gradient_fills"]`. The bootstrap checks it before
-extracting files. Projects without gradient fills omit this requirement.
-Group selection changes the editor only; saved element geometry and fields
-use the existing schema. There is no new group object for installed apps to
-interpret, and installed apps never depend on the editor's selection state.
+Generated bitmap fonts (TDFONT01, immutable and validated) use the
+`font_text` operation or a `font: {path: ...}` on a button or picture; the
+package lists `font_text` in `runtime.features`. Gradient fills add the
+`gradient_fills` capability. Projects without them keep their old output.
+Group selection is editor-only and adds nothing to saved projects.
+
+## Native cell frames (development only)
+
+The helper's simulator sends the browser TDCF 1 frames: a 16-byte header
+(`TDCF`, version 1, reserved, little-endian columns, rows, cursor x and y,
+cursor-visible flag, reserved), then four bytes per cell (UTF-16 code
+point LE, palette foreground, palette background). They are a development
+tool and change nothing an installed app needs.
+
+## Before a release
+
+Run the canonical JSON/Python round trips, the old (`tests/reference/
+tdui_0.2.0.py`) and current (`vendor/tinydesk/tdui.py`) tdui fixtures,
+control-event tests, deterministic package and integrity tests, and the
+simulation tests. Keep the fixtures when the schema or generator changes;
+add explicit migrations for incompatible changes.

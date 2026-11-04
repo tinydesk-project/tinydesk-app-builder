@@ -4,7 +4,7 @@
     const $=s=>document.querySelector(s),escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const dialog=document.createElement('dialog');dialog.id='boardDialog';
     dialog.innerHTML='<div class="modal-heading"><h2>Board files</h2><button id="closeBoard" aria-label="Close Board files">×</button></div>'+ 
-        '<p class="board-help">Start <code>python tools/studio_bridge.py</code>, paste its token below, and run <code>ftp start</code> as root on the board. The helper listens on 127.0.0.1 only; idle FTP sessions close after 30 seconds. Use <code>--port 9000</code> for another helper port.</p>'+
+        '<p class="board-help">Start <code>python tools/board_bridge.py</code>, paste its token below, and run <code>ftp start</code> as root on the board. The helper listens on 127.0.0.1 only; idle FTP sessions close after 30 seconds. Use <code>--port 9000</code> for another helper port.</p>'+
         '<div class="bridge-form"><label class="field">Helper port<input id="bridgePort" type="number" value="8765" min="1" max="65535"></label><label class="field">Builder token<input id="bridgeToken" type="password" autocomplete="off" spellcheck="false"></label></div>'+
         '<div class="board-form"><label class="field">Board host<input id="ftpHost" placeholder="192.168.1.50" autocomplete="off"></label><label class="field">FTP port<input id="ftpPort" type="number" value="21" min="1" max="65535"></label><label class="field">User<input id="ftpUser" value="root" autocomplete="off"></label><label class="field">Password<input id="ftpPassword" type="password" autocomplete="off"></label></div>'+
         '<p class="board-warning">FTP sends the password unencrypted. Use it only on a network you trust.</p>'+
@@ -33,8 +33,8 @@
     async function request(route,method='GET',data){
         if(!transport)throw Error('Enter the helper token and connect first.');
         let response;
-        try{response=await fetch(transport.base+route,{method,headers:{'X-Studio-Token':transport.token,...(data===undefined?{}:{'Content-Type':'application/json'})},body:data===undefined?undefined:JSON.stringify(data),cache:'no-store',credentials:'omit'});}
-        catch(e){throw Error('Cannot reach the helper. Run python tools/studio_bridge.py, check the helper port and token, then connect again.');}
+        try{response=await fetch(transport.base+route,{method,headers:{'X-Builder-Token':transport.token,...(data===undefined?{}:{'Content-Type':'application/json'})},body:data===undefined?undefined:JSON.stringify(data),cache:'no-store',credentials:'omit'});}
+        catch(e){throw Error('Cannot reach the helper. Run python tools/board_bridge.py, check the helper port and token, then connect again.');}
         if(!response.ok){let text;try{text=(await response.json()).error;}catch(e){text='Helper returned HTTP '+response.status;}if(response.status===502||/Not connected|connection closed/i.test(text)){connected=false;controls();}throw Error(text);}
         return response;
     }
@@ -80,7 +80,7 @@
         });
     };
     function upload(path,blob,onProgress){return new Promise((resolve,reject)=>{
-        const xhr=new XMLHttpRequest();xhr.open('PUT',transport.base+'/upload?path='+encodeURIComponent(path));xhr.setRequestHeader('X-Studio-Token',transport.token);xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.timeout=120000;
+        const xhr=new XMLHttpRequest();xhr.open('PUT',transport.base+'/upload?path='+encodeURIComponent(path));xhr.setRequestHeader('X-Builder-Token',transport.token);xhr.setRequestHeader('Content-Type','application/octet-stream');xhr.timeout=120000;
         xhr.upload.onprogress=e=>onProgress(e.lengthComputable?e.loaded/e.total*100:0,'Sending to helper…');
         xhr.upload.onload=()=>onProgress(100,'Transferring to board and verifying SIZE…');
         xhr.onerror=()=>{connected=false;controls();reject(Error('The helper could not be reached. Start it and check the token.'));};
@@ -106,7 +106,7 @@
         }
     }
     $('#boardUpload').onclick=()=>$('#boardFileInput').click();$('#boardFileInput').onchange=e=>{enqueue([...e.target.files]);e.target.value='';};
-    $('#boardUploadDesign').onclick=()=>action(async()=>{const format=$('#boardDesignFormat').value,mpy=format!=='py';status(mpy?'Building app…':'Preparing Python…');const exported=format==='tdapp'?await window.StudioDesign.exportApp():mpy?await window.StudioDesign.exportMpy():window.StudioDesign.exportCurrent();const file=new File([exported.content],exported.name,{type:mpy?'application/octet-stream':'text/x-python'});enqueue([file],true);});
+    $('#boardUploadDesign').onclick=()=>action(async()=>{const format=$('#boardDesignFormat').value,mpy=format!=='py';status(mpy?'Building app…':'Preparing Python…');const exported=format==='tdapp'?await window.BuilderDesign.exportApp():mpy?await window.BuilderDesign.exportMpy():window.BuilderDesign.exportCurrent();const file=new File([exported.content],exported.name,{type:mpy?'application/octet-stream':'text/x-python'});enqueue([file],true);});
     $('#boardList').ondragover=e=>{e.preventDefault();if(connected&&!busy)$('#boardList').classList.add('drag-over');};$('#boardList').ondragleave=()=>$('#boardList').classList.remove('drag-over');
     $('#boardList').ondrop=e=>{e.preventDefault();$('#boardList').classList.remove('drag-over');if(connected)enqueue([...e.dataTransfer.files]);};
 })();

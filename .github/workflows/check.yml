@@ -1,4 +1,4 @@
-name: Studio compatibility
+name: Checks
 on: [push, pull_request]
 jobs:
   validate:
@@ -11,16 +11,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: node tests/core.test.cjs
-      - run: node tests/pixels.test.cjs
-      - run: node tests/resources.test.cjs
-      - run: node tests/simulation-frame.test.cjs
-      - run: node tests/geometry.test.cjs
-      - run: node tests/fonts.test.cjs
-      - run: node tests/startup.test.cjs
-      - run: node tests/selection.test.cjs
-      - run: node tests/gradients.test.cjs
-      - run: python tests/verify_export.py
-      - run: python tests/verify_pixels.py
-      - run: python tests/verify_controls.py
-      - run: python tests/verify_bridge.py
+      - name: The pinned TinyDesk files are unchanged
+        run: python tools/sync_tinydesk.py --check
+      - name: Editor and generator
+        run: |
+          node --check app.js
+          node --test tests/*.test.cjs
+      - name: Exports against the firmware's tdui.py
+        run: |
+          python tests/verify_export.py
+          python tests/verify_pixels.py
+          python tests/verify_controls.py
+          python tests/verify_bridge.py

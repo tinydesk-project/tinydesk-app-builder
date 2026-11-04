@@ -1,4 +1,4 @@
-"""Serve Studio with a real TinyDesk/MicroPython simulation on loopback."""
+"""Serve App Builder on loopback, with a real TinyDesk/MicroPython simulation, compiling and packaging."""
 import argparse
 import base64
 import json
@@ -88,7 +88,7 @@ class Simulation:
         if not isinstance(source,str) or len(source)>5_000_000 or not 20<=cols<=300 or not 5<=rows<=150:
             raise ValueError('Invalid simulation source or dimensions.')
         self.rgb_mode='\ntdui.enable_rgb_pictures()\n' in source
-        self.work = tempfile.TemporaryDirectory(prefix='tinydesk-studio-')
+        self.work = tempfile.TemporaryDirectory(prefix='tdab-')
         root = Path(self.work.name)/'tinydesk_fs/root'
         root.mkdir(parents=True)
         for p in (ROOT/'examples').iterdir():
@@ -134,13 +134,13 @@ class Simulation:
             name=safe_name(module)
             if not any((root/(name+suffix)).is_file() for suffix in ('.py', '.mpy')):
                 raise ValueError('Missing simulation module: '+name+'. Import its compiled dependency or supply --project-dir PATH.')
-        (root/'studio_app.py').write_text(source,encoding='utf-8')
+        (root/'builder_app.py').write_text(source,encoding='utf-8')
         self.offset = 0
         self.session=secrets.token_hex(16)
         self.process = subprocess.Popen([self.runtime,'size=%dx%d'%(cols,rows),
             'sixel=%dx%d'%((10,20) if cols==80 and rows==24 else (8,16)),
             'auth=off',
-            'wait=500','key=Enter','wait=700','type=py -m 1024 /root/studio_app.py\\r',
+            'wait=500','key=Enter','wait=700','type=py -m 1024 /root/builder_app.py\\r',
             'wait=2500','interactive'],cwd=self.work.name,stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
         self.lines=queue.Queue()
@@ -162,7 +162,7 @@ def main():
     runtime=max(choices,key=lambda p:p.stat().st_mtime) if choices else Path(shutil.which('tdsim') or ROOT.parent/'tinydesk/build'/executable)
     parser.add_argument('--runtime',type=Path,default=runtime)
     parser.add_argument('--port',type=int,default=8773)
-    parser.add_argument('--project-dir',type=Path,action='append',default=[],help='Local private dependencies; never included in Studio itself.')
+    parser.add_argument('--project-dir',type=Path,action='append',default=[],help='Local private dependencies; never included in App Builder itself.')
     parser.add_argument('--compiler',type=Path,help='Matching native mpy-cross for binary app export.')
     args = parser.parse_args()
     if args.compiler is None:
@@ -190,7 +190,7 @@ def main():
 
         def do_GET(self):
             if self.path.split('?')[0] in ('/','/index.html'):
-                data = (ROOT/'index.html').read_text(encoding='utf-8').replace('<head>','<head><meta name="studio-simulation-token" content="'+token+'"><meta name="studio-simulation-protocol" content="4">').encode()
+                data = (ROOT/'index.html').read_text(encoding='utf-8').replace('<head>','<head><meta name="builder-token" content="'+token+'"><meta name="builder-protocol" content="4">').encode()
                 self.send_response(200)
                 self.send_header('Content-Type','text/html; charset=utf-8')
                 self.send_header('Cache-Control','no-store')
@@ -201,7 +201,7 @@ def main():
 
         def do_POST(self):
             origin = self.headers.get('Origin')
-            if self.headers.get('Host') not in ('127.0.0.1:'+str(args.port),'localhost:'+str(args.port)) or origin not in ('http://127.0.0.1:'+str(args.port),'http://localhost:'+str(args.port)) or not secrets.compare_digest(self.headers.get('X-Studio-Token',''),token):
+            if self.headers.get('Host') not in ('127.0.0.1:'+str(args.port),'localhost:'+str(args.port)) or origin not in ('http://127.0.0.1:'+str(args.port),'http://localhost:'+str(args.port)) or not secrets.compare_digest(self.headers.get('X-Builder-Token',''),token):
                 # Drain bounded request bodies so Windows does not reset the
                 # socket with unread bytes before the 403 reaches the client.
                 try:
@@ -233,7 +233,7 @@ def main():
                             name=Path(asset).name
                             if name in assets:continue
                             candidates=[folder/name for folder in directories if (folder/name).is_file()]
-                            if not candidates:raise ValueError('Missing package asset: '+name+'. Import it in Studio or supply --project-dir.')
+                            if not candidates:raise ValueError('Missing package asset: '+name+'. Import it in App Builder or supply --project-dir.')
                             assets[name]=candidates[-1].read_bytes()
                         for name in body['project'].get('modules',[]):
                             from app_package import safe_name

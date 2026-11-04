@@ -14,7 +14,7 @@ from urllib.parse import quote
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('studio_bridge', ROOT / 'tools/studio_bridge.py')
+spec = importlib.util.spec_from_file_location('board_bridge', ROOT / 'tools/board_bridge.py')
 bridge_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridge_module)
 
@@ -202,7 +202,7 @@ def verify():
     def request(method, path, data=None, token=True, origin='http://localhost:4174', headers=None):
         fields = {'Origin': origin}
         if token:
-            fields['X-Studio-Token'] = bridge.token if token is True else token
+            fields['X-Builder-Token'] = bridge.token if token is True else token
         if headers:
             fields.update(headers)
         if data is not None and not isinstance(data, bytes):
@@ -226,7 +226,7 @@ def verify():
         check(request('GET', '/list', token='wrong')[0] == 403, 'wrong token refused')
         check(request('GET', '/list', origin='https://evil.example')[0] == 403, 'foreign origin refused')
         check(request('GET', '/list', headers={'Host': 'evil.example'})[0] == 403, 'foreign Host refused')
-        status, _, headers = request('OPTIONS', '/upload', token=False, origin='null', headers={'Access-Control-Request-Method': 'PUT', 'Access-Control-Request-Headers': 'X-Studio-Token'})
+        status, _, headers = request('OPTIONS', '/upload', token=False, origin='null', headers={'Access-Control-Request-Method': 'PUT', 'Access-Control-Request-Headers': 'X-Builder-Token'})
         check(status == 200 and headers.get('Access-Control-Allow-Origin') == 'null' and ftp.connects == 0, 'preflight is local-only and performs no FTP operation')
         status, result, headers = connect()
         check(status == 200 and result == {'cwd': '/root'}, 'FTP connect and PWD')

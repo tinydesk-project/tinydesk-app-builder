@@ -1,7 +1,7 @@
 """TDAPP v1: MicroPython bootstrap + checked files + JSON manifest + footer.
 
 The bootstrap is ordinary bytecode; TinyDesk's py command loads .tdapp in
-the same way as .mpy. The footer permits Studio to recover JSON and assets
+the same way as .mpy. The footer lets App Builder recover JSON and assets
 without executing untrusted application code.
 """
 import hashlib
@@ -39,6 +39,11 @@ def _tdapp_run():
         manifest=json.loads(raw)
         if manifest['format']!=1 or manifest['runtime']['api']!=1:
             raise ValueError('Unsupported TDAPP contract')
+        # Firmware before tdui.API is API 1.0 with the SUPPORTS_ flags.
+        api=getattr(tdui,'API',(1,0))
+        need=manifest['runtime'].get('apiMinor',0)
+        if api[0]!=1 or need>api[1]:
+            raise ValueError('Update TinyDesk: this app needs tdui API 1.%d, the firmware has %d.%d'%(need,api[0],api[1]))
         if getattr(sys.implementation,'_mpy',0)&255 != 6:
             raise ValueError('TDAPP needs MicroPython bytecode v6')
         native=manifest['runtime'].get('native')
@@ -49,10 +54,15 @@ def _tdapp_run():
         for feature in manifest['runtime']['features']:
             if not hasattr(tdui.Canvas,feature):
                 raise ValueError('Firmware missing Canvas.'+feature)
+        capabilities=getattr(tdui,'CAPABILITIES',None)
+        supported={'gradient_fills':'SUPPORTS_GRADIENT_FILLS','rgb_pictures':'SUPPORTS_RGB_PICTURES'}
         for capability in manifest['runtime'].get('capabilities',[]):
-            supported={'gradient_fills':'SUPPORTS_GRADIENT_FILLS','rgb_pictures':'SUPPORTS_RGB_PICTURES'}
-            if capability not in supported or not getattr(tdui,supported[capability],False):
-                raise ValueError('Firmware missing capability: '+capability)
+            if capabilities is not None:
+                ok=capability in capabilities
+            else:
+                ok=capability in supported and getattr(tdui,supported[capability],False)
+            if not ok:
+                raise ValueError('Update TinyDesk or pick another board: the firmware lacks '+capability)
         files=manifest['files']
         if not 1<=len(files)<=128:
             raise ValueError('Invalid TDAPP file count')
@@ -166,7 +176,9 @@ def compile_source(compiler,source,source_name='app.py',compilation=None):
         return data
 
 
-def build(compiler,project,source,assets=None,modules=None,binaries=None):
+def build(compiler,project,source,assets=None,modules=None,binaries=None,api_minor=0):
+    # api_minor: the tdui API 1.x the app needs; written only when above 0,
+    # so packages that need only 1.0 stay byte-identical.
     project=json.loads(json.dumps(project))
     if project.get('version')!=1:
         raise ValueError('Unsupported project schema')
@@ -222,6 +234,7 @@ def build(compiler,project,source,assets=None,modules=None,binaries=None):
         manifest['runtime']['capabilities']=['gradient_fills']
     if project.get('colorMode')=='rgb565' and project.get('board',2000)>2000:
         manifest['runtime'].setdefault('capabilities',[]).append('rgb_pictures')
+    if api_minor:manifest['runtime']['apiMinor']=api_minor
     if startup:manifest['startup']=startup
     for name,data in files.items():
         manifest['files'].append({'path':name,'offset':len(out),'size':len(data),'sha256':hashlib.sha256(data).hexdigest()})

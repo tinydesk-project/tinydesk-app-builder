@@ -5,18 +5,18 @@ document.querySelector('#downloadMpy').after(packageButton);
 document.querySelector('#file').accept='.json,.py,.tdapp';
 function bytes64(bytes){let text='';for(let i=0;i<bytes.length;i+=8192)text+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(text);}
 async function exportApp(){
-  const token=document.querySelector('meta[name="studio-simulation-token"]')?.content;
-  if(!token)throw Error('Start tools/studio_simulator.py and open its local URL to export compiled app packages.');
+  const token=document.querySelector('meta[name="builder-token"]')?.content;
+  if(!token)throw Error('Start tools/builder_helper.py and open its local URL to export compiled app packages.');
   TDVersion.stamp(design);const check=TD.validate(design);if(check.errors.length)throw Error(check.errors.join('\n'));
   const source=TD.generate(design,{bundle:true}),assets=Object.create(null),binaries=Object.create(null);
   for(const file of design.assets||[])assets[file.name]=file.data;
   for(const file of design.binaryDependencies||[])binaries[file.name]=file.data;
   const paths=[...TDResources.required(design).values()];
-  const response=await fetch('/package/build',{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':token},body:JSON.stringify({project:design,source,assets,paths,binaries})});
+  const response=await fetch('/package/build',{method:'POST',headers:{'Content-Type':'application/json','X-Builder-Token':token},body:JSON.stringify({project:design,source,assets,paths,binaries})});
   const value=await response.json();if(!response.ok)throw Error(value.error);
   return {name:design.name.replace(/[^a-zA-Z0-9_-]/g,'_')+'.tdapp',content:Uint8Array.from(atob(value.binary),c=>c.charCodeAt(0)),deployment:value.deployment};
 }
-window.StudioDesign.exportApp=exportApp;
+window.BuilderDesign.exportApp=exportApp;
 const installButton=document.createElement('button');installButton.id='deploymentGuide';installButton.textContent='Install / kiosk';packageButton.after(installButton);
 installButton.onclick=async()=>{
  try{installButton.disabled=true;const app=await exportApp();openModal('Install '+app.name,'<p>Export and upload this revision first, then follow these steps. These settings apply after reboot.</p><pre id="deploymentCommands"></pre><p><a href="guide.html" target="_blank" rel="noopener">Full deployment and recovery guide</a></p>');document.querySelector('#deploymentCommands').textContent=app.deployment;}

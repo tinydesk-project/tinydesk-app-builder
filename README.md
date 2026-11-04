@@ -1,4 +1,4 @@
-# TinyDesk App Builder 0.10.0
+# TinyDesk App Builder 0.11.0
 
 ## Faster page focus
 
@@ -247,10 +247,14 @@ palette or white/teal light palette. These editor colors never alter app pixels.
 
 ## Build, inspect and distribute applications
 
-The firmware lives in `tinydesk-project/tinydesk`; this builder is intended
-for the separate `tinydesk-project/tinydesk-studio` repository. Private
+The firmware lives in `tinydesk-project/tinydesk`; this builder is its own
+repository, `tinydesk-project/tinydesk-app-builder`, with its own versions
+([CHANGELOG.md](CHANGELOG.md)). Which firmware runs which app is in
+[COMPATIBILITY.md](COMPATIBILITY.md). The TinyDesk files the builder is
+checked against are pinned in `vendor/tinydesk/`; after a TinyDesk tdui
+change run `python tools/sync_tinydesk.py ../tinydesk` and the tests. Private
 application projects and controllers belong in their own repositories and
-are opened with Import. They are never built-in Studio examples.
+are opened with Import. They are never built-in App Builder examples.
 
 - The outline exposes individual canvas elements. Select an element on the
   canvas or in the outline to edit its attributes in the fixed right pane.
@@ -280,7 +284,7 @@ are opened with Import. They are never built-in Studio examples.
   automatically. Existing custom artwork with that filename is preserved.
   The helper also includes the public default skin for older external designs.
 - Export options exposes the application version and dependency declarations.
-  The visible badge and exported source record Studio/project/app versions.
+  The visible badge and exported source record App Builder/project/app versions.
 - **Export app** creates one `.tdapp` containing checked bytecode, project
   JSON, resources and dependency modules. The board-files uploader also
   offers `.tdapp`. Launch with `py /root/my_app.tdapp`, or Run from Files
@@ -290,7 +294,7 @@ are opened with Import. They are never built-in Studio examples.
   dependency source separately if you want to edit its internals.
 
 Simulation, native `.mpy` compilation and `.tdapp` export use the optional
-loopback helper. Start it with `python tools/studio_simulator.py`; use
+loopback helper. Start it with `python tools/builder_helper.py`; use
 `--runtime PATH_TO_TDSIM` and `--compiler PATH_TO_MPY_CROSS` if they are not
 installed in the standard development locations. No cloud compilation is
 used. The standalone editor still supports JSON/Python editing offline.
@@ -298,19 +302,19 @@ The separate optional WASM compiler enables `.mpy` export without the helper.
 
 Read [COMPATIBILITY.md](COMPATIBILITY.md) for schema, API, bytecode and package
 version rules. Old JSON/Python fixtures are retained and tested; installed
-apps do not depend on future Studio releases. Run only apps you trust.
+apps do not depend on future App Builder releases. Run only apps you trust.
 
 ## Designing an app
 
 ### Runtime simulation and private projects
 
-Run `python tools/studio_simulator.py`, open http://127.0.0.1:8773/ and
+Run `python tools/builder_helper.py`, open http://127.0.0.1:8773/ and
 choose **Run simulation**. The generated Python executes in the actual
 TinyDesk host runtime. Hardware timing and physical buses require board tests.
 Use `--runtime PATH` for another tdsim build. Private application dependencies
 can be supplied with repeatable `--project-dir PATH` options; they are copied
 only into that simulation's temporary filesystem. Keep project JSON, code and
-assets in your own separate repository. Studio contains generic examples only.
+assets in your own separate repository. App Builder contains generic examples only.
 
 The current helper requires a recent `tdsim` supporting `cells=FILE` (TDCF v1).
 Rebuild the host tool after updating TinyDesk, then restart the helper and reload
@@ -448,7 +452,7 @@ All pages' widgets and canvases exist at once and count toward the limits. Gener
 
 Select a canvas, enable **Paint cells**, and choose **Big text**. Set text, scale **1–4**, width **0–64 characters**, foreground and background, then click to place it. The inspector shows the resulting columns × rows; placements that do not fit are refused. Width 0 uses the natural size. A positive width right-aligns with blank leading characters or trims from the left. One operation accepts up to 64 characters.
 
-The preview uses the exact 3×5 pixel font from `reference/pyui.c`, packing two pixel rows into `▀`, `▄`, and `█` cells. Digits, A–Z, `- + % / . :` and spaces are supported; lowercase becomes uppercase, other characters become `?`. Periods and colons are narrow. Generated painters use `cv.big(...)` when available, or identical precomputed `put()` rows on TinyDesk 0.2.0.
+The preview uses the exact 3×5 pixel font from TinyDesk's `apps/pyui.c` (pinned in `vendor/tinydesk/pyui.c`), packing two pixel rows into `▀`, `▄`, and `█` cells. Digits, A–Z, `- + % / . :` and spaces are supported; lowercase becomes uppercase, other characters become `?`. Periods and colons are narrow. Generated painters use `cv.big(...)` when available, or identical precomputed `put()` rows on TinyDesk 0.2.0.
 
 Import **examples/six_page_hmi.json** for a 100×30 fullscreen example with six cached pages and big numbers (18,000 cells, PSRAM target). Its Python file runs through either API path when the board has enough canvas cells.
 
@@ -485,9 +489,9 @@ bash tools/build_mpy_cross_wasm.sh
 python tests/verify_mpy.py
 ```
 
-The script builds MicroPython **v1.29.0**, disables native emitters, and writes a web/worker-only, modularized, embedded-WASM bundle. It records the actual SHA-256, MicroPython tag and emsdk version in `vendor/README.md`, and copies the MicroPython license. After building, include the `vendor` folder when repackaging Studio. End users then need only the browser, including from `file://`; no compiler installation is needed.
+The script builds MicroPython **v1.29.0**, disables native emitters, and writes a web/worker-only, modularized, embedded-WASM bundle. It records the actual SHA-256, MicroPython tag and emsdk version in `vendor/README.md`, and copies the MicroPython license. After building, include the `vendor` folder when repackaging App Builder. End users then need only the browser, including from `file://`; no compiler installation is needed.
 
-`.mpy` gives faster startup, less RAM while loading, and no Python source on the board. It does **not** make the application's running code faster. The bytecode version must match the firmware: the supplied TinyDesk specification uses MicroPython 1.29.0 / bytecode version 6 on TinyDesk 0.2.0 and later. Studio produces default bytecode without native emitters (features byte 0).
+`.mpy` gives faster startup, less RAM while loading, and no Python source on the board. It does **not** make the application's running code faster. The bytecode version must match the firmware: the supplied TinyDesk specification uses MicroPython 1.29.0 / bytecode version 6 on TinyDesk 0.2.0 and later. App Builder produces default bytecode without native emitters (features byte 0).
 
 Comments are not retained in bytecode: **Embed design for re-import** applies only to `.py`. **Save JSON** is the way to reopen a design exported as `.mpy`; compiled files cannot be imported as editable projects.
 
@@ -496,14 +500,14 @@ Comments are not retained in bytecode: **Embed design for re-import** applies on
 The **Board files** button opens an optional file manager. The editor works entirely without its helper; no helper request is made until you connect. The helper needs only Python 3's standard library:
 
 ```text
-python tools/studio_bridge.py
-python tools/studio_bridge.py --port 9000
-python tools/studio_bridge.py --max-upload 8388608
+python tools/board_bridge.py
+python tools/board_bridge.py --port 9000
+python tools/board_bridge.py --max-upload 8388608
 ```
 
-The default address is `http://127.0.0.1:8765`. The helper binds to **127.0.0.1 only** and prints a random token in a “Paste this token into Studio” line. Paste it into the panel and set Helper port if changed. Tokens and passwords are kept only in session memory, never in browser storage or log files. The password field is cleared after connecting.
+The default address is `http://127.0.0.1:8765`. The helper binds to **127.0.0.1 only** and prints a random token in a “Paste this token into App Builder (Builder token)” line. Paste it into the panel and set Helper port if changed. Tokens and passwords are kept only in session memory, never in browser storage or log files. The password field is cleared after connecting.
 
-On the board, log in as root and run `ftp start`. Enter the board's network host, FTP port (normally 21), user (normally root), and password in Studio. Root's factory password must have been changed on the board first. Root starts in `/root`; other users start in and are confined to `/home/<name>` by the board.
+On the board, log in as root and run `ftp start`. Enter the board's network host, FTP port (normally 21), user (normally root), and password in App Builder. Root's factory password must have been changed on the board first. Root starts in `/root`; other users start in and are confined to `/home/<name>` by the board.
 
 **FTP sends the password unencrypted. Use it only on a network you trust.**
 
@@ -515,7 +519,7 @@ Use **Upload files**, or drop files onto the list. Files queue one at a time, wi
 
 The helper holds at most one FTP connection. Connect replaces the existing session, Disconnect closes it, and an idle session closes after about 30 seconds. Enter the password again to reconnect. Errors retain the board's reply text. No real-board connection is needed for the included tests.
 
-Every API operation requires the printed token in `X-Studio-Token`. Browser origins are limited to `null` (local files), `http://localhost` and `http://127.0.0.1`, including local ports. Browser CORS preflights cannot contain the token value: they only advertise the allowed methods/headers and perform no FTP operation. The actual request still requires the token. The helper also rejects nonlocal Host headers. If the helper is stopped, the panel explains how to start it while the rest of Studio stays usable.
+Every API operation requires the printed token in `X-Builder-Token`. Browser origins are limited to `null` (local files), `http://localhost` and `http://127.0.0.1`, including local ports. Browser CORS preflights cannot contain the token value: they only advertise the allowed methods/headers and perform no FTP operation. The actual request still requires the token. The helper also rejects nonlocal Host headers. If the helper is stopped, the panel explains how to start it while the rest of App Builder stays usable.
 
 ## Verification
 
@@ -535,13 +539,13 @@ The test scripts return nonzero on failure and print one summary line on success
 
 The Node tests cover example/all-widget/page round trips, boundary limits, UTF-8, escaping, bounds and anchors, names, malformed imports, PSRAM layouts, pages, handlers, firmware guards, two blank lines between top-level functions, pure window move/resize gestures, one undo step per drag, FTP LIST parsing, and breadcrumbs. Canonical JSON/Python fixtures live under `tests/fixtures/`, including an old-format import fixture.
 
-Python verification `py_compile`s every fixture, then executes exports against both the new `reference/tdui.py` (identical to `tests/reference/tdui.py`) and the round-3 snapshot `tests/reference/tdui_0.2.0.py`. `_tdui.send` models separate drawing/shown pictures, PAGE, PAGE_COPY, BIG and resize; `_tdui.recv` replays events. CPython compatibility adapters provide `micropython.const` and `time.ticks_*`; the actual widgets, dispatcher, and timers run unchanged. A recording `run()` verifies startup without an endless loop.
+Python verification `py_compile`s every fixture, then executes exports against both the firmware's current `vendor/tinydesk/tdui.py` (pinned by `tools/sync_tinydesk.py`) and the round-3 snapshot `tests/reference/tdui_0.2.0.py`. `_tdui.send` models separate drawing/shown pictures, PAGE, PAGE_COPY, BIG and resize; `_tdui.recv` replays events. CPython compatibility adapters provide `micropython.const` and `time.ticks_*`; the actual widgets, dispatcher, and timers run unchanged. A recording `run()` verifies startup without an endless loop.
 
 The tests cover callbacks, repeated/one-shot timers, both page paths, exact per-cell pictures, one PAGE request per shared rectangle without repainting, hidden dynamic edits, callback routing, independent picture copies, resizing all pictures and firmware guards. Big-text expectations are independently rasterized from the C font at several scales and widths. `verify_mpy.py` compiles every fixture through `mpy.js`, checks the version-6 header/features byte, and checks syntax-error line numbers. If native `mpy-cross` **1.29.0** is installed, it also compares every output byte; otherwise that comparison is explicitly skipped. A missing vendor compiler explicitly skips the entire `.mpy` suite.
 
 These tests do not emulate the native desktop or ESP32 heap. Physical-board verification remains necessary for hardware access, runtime memory and dynamic user code. Keep runtime messages within 1,024 bytes and menus within 20 items.
 
-`verify_bridge.py` starts a standard-library fake FTP server matching the supplied `reference/tdsh_ftp.c`: one client, passive-only, fixed LIST columns, no MLSD. HTTP tests cover tokens, allowed/refused origins, connect/reconnect, UTF-8 names, binary upload and download, exact `SIZE` verification, generated-design byte preservation, rename, mkdir, delete, rmdir, 550 errors, upload limits, explicit disconnect, and idle cleanup. The C reference is read-only. A real TinyDesk board remains the final interoperability check.
+`verify_bridge.py` starts a standard-library fake FTP server matching TinyDesk Shell's `tdsh_ftp.c` (pinned in `vendor/tinydesk/`): one client, passive-only, fixed LIST columns, no MLSD. HTTP tests cover tokens, allowed/refused origins, connect/reconnect, UTF-8 names, binary upload and download, exact `SIZE` verification, generated-design byte preservation, rename, mkdir, delete, rmdir, 550 errors, upload limits, explicit disconnect, and idle cleanup. The C reference is read-only. A real TinyDesk board remains the final interoperability check.
 
 
 ## Button events and clean skins
@@ -551,7 +555,7 @@ Select a canvas, choose **Pixel drawing / button / picture**, and select
 for colors, rounded ends, text scale, or an optional sprite sheet. The skin
 preset uses `/root/ui_skin.ppm`, magenta transparency, no dithering, and
 separate normal/pressed sprite regions. Copy that image to the board;
-Studio's preview marks image bounds and does not read board files.
+App Builder's preview marks image bounds and does not read board files.
 
 Each button has **on_press**, **on_release**, **on_click**, and **on_cancel**
 sections. Choose a starter action (set text, switch page, close window,

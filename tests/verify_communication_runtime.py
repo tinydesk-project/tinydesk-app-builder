@@ -7,7 +7,7 @@ import tempfile
 
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
-from studio_simulator import Simulation
+from builder_helper import Simulation
 from app_package import build,inspect
 runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
 compiler=root.parent/'tinydesk/build-check-20261103/compiler/mpy_cross/mpy-cross.exe'

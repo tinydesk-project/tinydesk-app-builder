@@ -108,5 +108,5 @@ document.addEventListener('keydown',e=>{
  if(delta){e.preventDefault();e.stopImmediatePropagation();snapshot();const n=e.shiftKey?5:1;p.x+=delta[0]*n;p.y+=delta[1]*n;if(p.op==='line'){p.x2+=delta[0]*n;p.y2+=delta[1]*n;}render();}
 },true);
 const updateElementsBase=update;
-update=function(){TDVersion.stamp(design);updateElementsBase();const badge=document.querySelector('.subbar .tag');if(badge)badge.textContent='app '+design.application.version+' · Builder '+TDVersion.VERSION.studio+' · schema '+design.version;};
+update=function(){TDVersion.stamp(design);updateElementsBase();const badge=document.querySelector('.subbar .tag');if(badge)badge.textContent='app '+design.application.version+' · Builder '+TDVersion.VERSION.builder+' · schema '+design.version;};
 render();

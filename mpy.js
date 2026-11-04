@@ -32,9 +32,9 @@
     async function compileMpy(source,filename='app.py',compilation={mode:'bytecode'}){
         if(typeof source!=='string')throw Error('Compiler source must be a string.');
         if(!/^[A-Za-z0-9_.-]+\.py$/.test(filename))throw Error('Use a simple .py source filename.');
-        const token=typeof document==='object'?document.querySelector('meta[name="studio-simulation-token"]')?.content:null;
+        const token=typeof document==='object'?document.querySelector('meta[name="builder-token"]')?.content:null;
         if(token){
-            const response=await fetch('/compiler/compile',{method:'POST',headers:{'Content-Type':'application/json','X-Studio-Token':token},body:JSON.stringify({source,filename,compilation})});
+            const response=await fetch('/compiler/compile',{method:'POST',headers:{'Content-Type':'application/json','X-Builder-Token':token},body:JSON.stringify({source,filename,compilation})});
             const result=await response.json();if(!response.ok)throw Error(result.error||'Compilation failed.');
             return Uint8Array.from(atob(result.binary),c=>c.charCodeAt(0));
         }

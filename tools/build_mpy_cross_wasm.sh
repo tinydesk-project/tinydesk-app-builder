@@ -18,7 +18,7 @@ from pathlib import Path
 import sys
 p = Path(sys.argv[1])
 s = p.read_text()
-marker = '// TinyDesk Studio web bytecode-only build'
+marker = '// TinyDesk App Builder web bytecode-only build'
 if marker not in s:
     s += '\n' + marker + '\n'
     for name in ('MICROPY_EMIT_X64', 'MICROPY_EMIT_X86', 'MICROPY_EMIT_THUMB',
