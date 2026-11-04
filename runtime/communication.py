@@ -193,6 +193,16 @@ class _TDLink:
         self.rendered[key] = value
 
     def _refresh(self):
+        # All bound values in one drawing batch where the app has one, so no
+        # frame shows some of them new and some old or half drawn.
+        batch = globals().get('_td_batch')
+        if batch is None:
+            self._refresh_all()
+            return
+        with batch():
+            self._refresh_all()
+
+    def _refresh_all(self):
         for element, spec, kind in self.bindings:
             if spec['direction'] != 'write':
                 self._display(element,spec,kind,self._value(spec))

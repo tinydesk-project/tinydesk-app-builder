@@ -165,4 +165,11 @@ test('group only distinct layout pages with identical rectangle',()=>{
  same.x++;assert.equal(T.canvasGroups(w).length,3);assert.equal(T.usage(d).cells,240);
 });
 test('old 8000 target migrates to 32000',()=>{const d=fixture('fullscreen');d.board=8000;assert.equal(T.parse(JSON.stringify(d)).board,32000);});
+test('what saves also imports; files over a package are refused',()=>{
+ const d=fixture('example');d.assets=[1,2,3,4,5,6].map(i=>({name:'big'+i+'.ppm',data:'A'.repeat(1400000)}));
+ const text=JSON.stringify(d);assert(text.length>5000000);T.parse(text);   // 6 MB: refused before 0.11
+ assert(!T.validate(d).errors.some(s=>/16 MiB/.test(s)));
+ d.assets=[1,2,3,4].map(i=>({name:'big'+i+'.ppm',data:'A'.repeat(5900000)}));
+ refused(d,/at most 16 MiB/);T.parse(JSON.stringify(d));
+});
 console.log('PASS: '+checks+' core checks (round trips, limits, pages, window gestures, FTP paths, exports).');

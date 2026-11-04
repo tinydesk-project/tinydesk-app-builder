@@ -73,6 +73,7 @@ if(d.startup){
 for(const f of Fonts.assets(d)){const file=d.assets?.find(a=>a.name===f.path.split('/').pop());if(file?.data){try{Fonts.decode(Uint8Array.from(typeof atob==='function'?atob(file.data):Buffer.from(file.data,'base64').toString('binary'),c=>c.charCodeAt(0)));}catch(e){error('Invalid generated font '+f.path+': '+e.message);}}else warnings.push('Font '+f.path+' is external; import it to make a portable project.');}
 const u=usage(d);if(u.windows<1||u.windows>4)error('Use 1–4 windows.');if(u.widgets>48)error('Widget budget exceeded: '+u.widgets+'/48 (lists count as two).');if(u.cells>d.board)error('Canvas budget exceeded: '+u.cells+'/'+d.board+' cells.');
 if(u.pixels>(d.board===2000?16384:2097152))error('Pixel budget exceeded: '+u.pixels+' bytes (canvas pages and image masks included).');
+{const bytes=[...(d.assets||[]),...(d.binaryDependencies||[])].reduce((n,a)=>n+Math.floor(a.data.length*3/4),0);if(bytes>16*1024*1024)error('Images, fonts and modules total '+(bytes/1048576).toFixed(1)+' MiB; an app package holds at most 16 MiB. Use smaller or fewer images.');}
 const pictures=pictureUsage(d),pictureLimit=d.board===2000?48:512;
 if(pictures.retained>pictureLimit)error('Native picture budget exceeded: '+pictures.retained+'/'+pictureLimit+' across cached pages (smooth panels use nine).');
 if(pictures.visible>(d.board===2000?64:128))error('Visible native picture budget exceeded: '+pictures.visible+'/'+(d.board===2000?64:128)+'. Reduce pictures or smooth panels on a page.');
@@ -475,26 +476,33 @@ class _TDField:
             _td_controls.append(self)
 
     def set(self, **changes):
-        if any(self.values.get(k) != v for k, v in changes.items()):
-            self.values.update(changes)
-            self.draw()
+        values = self.values
+        for k in changes:
+            if values.get(k) != changes[k]:
+                values.update(changes)
+                self.draw()
+                return
 
     def draw(self):
-        previous = self.cv.drawing if _TD_PAGES else 0
-        if _TD_PAGES:
-            self.cv.draw_to(self.page)
-        try:
-            if self.method == 'gauge':
-                _td_gauge(self.cv, **self.values)
-            elif self.method == 'slider':
-                _td_slider(self.cv, **self.values)
-            elif self.method == 'panel':
-                _td_panel(self.cv, **self.values)
-            else:
-                getattr(self.cv, self.method)(**self.values)
-        finally:
-            if _TD_PAGES:
-                self.cv.draw_to(previous)
+        # One batch: no frame shows the field half drawn (a fill, then the
+        # track, then the value would otherwise flicker when values move fast).
+        with _td_batch():
+            other = _TD_PAGES and self.cv.drawing != self.page
+            if other:
+                previous = self.cv.drawing
+                self.cv.draw_to(self.page)
+            try:
+                if self.method == 'gauge':
+                    _td_gauge(self.cv, **self.values)
+                elif self.method == 'slider':
+                    _td_slider(self.cv, **self.values)
+                elif self.method == 'panel':
+                    _td_panel(self.cv, **self.values)
+                else:
+                    getattr(self.cv, self.method)(**self.values)
+            finally:
+                if other:
+                    self.cv.draw_to(previous)
 
 class _TDNoBatch:
     def __enter__(self):
@@ -596,7 +604,7 @@ def canvas_page(cv, name):
 `;
 function parse(source){
     const bad=message=>{throw Error(message);};
-    if(typeof source!=='string'||source.length>5000000)bad('Design must be text smaller than 5 MB.');
+    if(typeof source!=='string'||source.length>32000000)bad('Design must be text smaller than 32 MB.');   // 16 MiB of files as base64, and the design
     let json=source;
     if(!source.trimStart().startsWith('{')){
         const old=source.match(/^# tdui-editor design: (.+)\r?$/m);

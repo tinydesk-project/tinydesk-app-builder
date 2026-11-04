@@ -21,6 +21,18 @@ cv._event(api._EV_MOUSE,30,10,0,1,None)
 assert slider.values['value']==100
 scope['reset_level'](None)
 assert slider.values['value']==0
+# One field update is one batch: no frame can show it half drawn.
+for name,value in (('level_gauge',42),('level_slider',57),('level_meter',13)):
+    start=len(board.requests)
+    scope[name].set(value=value)
+    sent=[r[0] for r in board.requests[start:]]
+    depth=0
+    for i,op in enumerate(sent):   # one outer batch from the first request to the last
+        depth+=(op==31)-(op==32)
+        assert depth>0 or i==len(sent)-1,(name,sent)
+    assert len(sent)>2 and sent[0]==31 and depth==0,(name,sent)
+    start=len(board.requests);scope[name].set(value=value)
+    assert len(board.requests)==start,'An unchanged value must send nothing'
 depth=0
 for request in board.requests:
     depth+=(request[0]==31)-(request[0]==32)

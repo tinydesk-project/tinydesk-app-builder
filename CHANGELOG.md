@@ -33,6 +33,22 @@ change between minor versions, but the apps it made keep running (see
 * **Faster editing of big projects:** dragging updates once per frame, and
   the code panel no longer builds the embedded design comments it hid
   (about 70% of its time on a large project).
+* **No half-drawn values in apps:** an exported app draws each changing
+  field (slider, gauge, bar, panel, text) as one tdui batch, and every value
+  from a serial/register reply in one batch, so a frame never shows a
+  field erased or half updated when values move fast. A field already on
+  the drawing page no longer switches pages around each update, and an
+  unchanged value sends nothing. Apps exported before need exporting again
+  to get this.
+* **Typed handler code is not lost:** closing the handler editor with Esc
+  or × asks first when something was typed; Shift+Tab leaves the code box
+  (Tab still indents); saving under the name of another handler asks
+  before replacing its body.
+* **What saves also imports:** designs up to 32 MB import (5 MB before,
+  while a saved design could be larger); images, fonts and modules over
+  the 16 MiB an app package holds are a design error.
+* The × and · in the screen sizes and dialog close button showed as
+  `Ã—` and `Â·` (double-encoded in earlier versions).
 * CI runs every test file and the pinned-files check.
 
 ## Before 0.11.0
