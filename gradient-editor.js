@@ -24,7 +24,7 @@ function gradientControls(root,values,apply){
  if(actions)actions.before(section);else host.append(section);
 }
 window.TDGradientInspector=(root,op,apply)=>{
- if(!gradientKinds.has(op.op))return;
+ if(!gradientKinds.has(op.op)||op.surfaceStyle)return;
  if(op.op==='button'&&op.asset){const p=document.createElement('p');p.className='hint';p.textContent='Enabling a geometric gradient replaces this button image skin.';root.append(p);}
  gradientControls(root,[op],apply);
 };

@@ -50,7 +50,8 @@ def _tdapp_run():
             if not hasattr(tdui.Canvas,feature):
                 raise ValueError('Firmware missing Canvas.'+feature)
         for capability in manifest['runtime'].get('capabilities',[]):
-            if capability!='gradient_fills' or not getattr(tdui,'SUPPORTS_GRADIENT_FILLS',False):
+            supported={'gradient_fills':'SUPPORTS_GRADIENT_FILLS','rgb_pictures':'SUPPORTS_RGB_PICTURES'}
+            if capability not in supported or not getattr(tdui,supported[capability],False):
                 raise ValueError('Firmware missing capability: '+capability)
         files=manifest['files']
         if not 1<=len(files)<=128:
@@ -108,7 +109,17 @@ def _tdapp_run():
     del manifest, files, raw, names
     import gc
     gc.collect()
-    __import__('_tdapp_main')
+    try:
+        __import__('_tdapp_main')
+    except Exception as error:
+        # Kiosk artwork can cover the terminal traceback. Keep one bounded
+        # diagnostic in this revision's private cache for offline inspection.
+        try:
+            with open(folder+'/startup-error.txt','w') as log:
+                sys.print_exception(error,log)
+        except OSError:
+            pass
+        raise
 
 _tdapp_run()
 '''
@@ -209,6 +220,8 @@ def build(compiler,project,source,assets=None,modules=None,binaries=None):
         manifest['runtime']['native']={'arch':next(k for k,v in NATIVE_ARCHES.items() if v==arch),'id':arch,'requiresRoot':True}
     if any(p.get('gradient') for w in project.get('windows',[]) for o in w.get('widgets',[]) for p in o.get('paint',[])):
         manifest['runtime']['capabilities']=['gradient_fills']
+    if project.get('colorMode')=='rgb565' and project.get('board',2000)>2000:
+        manifest['runtime'].setdefault('capabilities',[]).append('rgb_pictures')
     if startup:manifest['startup']=startup
     for name,data in files.items():
         manifest['files'].append({'path':name,'offset':len(out),'size':len(data),'sha256':hashlib.sha256(data).hexdigest()})

@@ -1,5 +1,158 @@
 # App Builder local validation
 
+## 0.10.0: bounded artwork reuse
+
+- Export options preserve Automatic, Off, 64 KiB and 128 KiB artwork-cache
+  choices through JSON round trips. Explicit choices generate an optional
+  runtime call for RGB PSRAM targets; older runtimes can omit the API.
+- All 27 native tests, 14 Node suites and the editor syntax check pass. Lossless cache tests cover
+  exact deduplication, bounded eviction, stale handles, long runs, disabled
+  allocation and incompressible artwork. Mutable source images invalidate
+  their references on hidden/copied pages.
+- Actual MicroPython plus the CrowPanel painter produces identical pixels
+  with reuse disabled/enabled, including hidden-value edits, pressed/released
+  controls and a keypad. Idle warming and reuse counters are exercised.
+- Actual canvas press/release handlers and MCU timestamps measured median
+  handler-entry-to-LCD-submission times of 364 ms with reuse off, 320 ms at
+  64 KiB and 260.5 ms at 128 KiB (30 page changes per setting). Native drawing
+  medians were 224, 195 and 139.5 ms. A 600 ms quiet interval prevents
+  overlapping requests and is excluded from timing. These device timestamps
+  supersede UART-observed focus timing, which includes transport/sampling.
+  The selected 128 KiB run reached 723 ms on its first heavier-page focus; it is
+  not an instant-page guarantee. Touch sampling and the following LCD refresh
+  are outside the submission measurement.
+- Direct cached-run expansion avoids a temporary decoded image and extra
+  PSRAM copy. Fully covered canvas backgrounds are omitted when the picture
+  budget permits. Continuous-row LCD copies preserve moved image tiles and
+  safe framebuffer ownership. Front/back visibility tests suppress duplicate
+  submissions and present scenes already retained in the hidden buffer.
+- An intermittent physical screen shift was reproduced with nine missed
+  preparations and a 140.650 ms peak gap. Keeping UI rendering, LCD painting
+  and RGB interrupt allocation on CPU 1 completed the same 180 page changes
+  with no misses. The final selected setting also passed 180 automatic page
+  changes with live bench values, zero allocation/sink failures, zero missed
+  preparations and a 22.411 ms peak preparation gap. Free PSRAM was 771,088
+  bytes, with a 622,592-byte largest block. Physical feedback was responsive
+  and stable. The 24 MHz LCD timing was retained.
+- The restored normal package passed 100 register cycles / 212 replies and
+  a three-minute changing-value stream / 724 replies, with no protocol
+  errors. Stream median/max round trips were 97.45/179.6 ms. The package's
+  temporary profiling hooks were removed before these checks. Real-card
+  timing and the external UART header remain separate commissioning checks.
+- No new browser visual check is claimed; browser control remains unable to
+  establish the current URL. Cache choices were verified through generated
+  code and tests.
+
+## 0.9.0: opt-in RGB pictures
+
+- CrowPanel diagnostics identified memory exhaustion in the per-picture
+  display cache: 3,400 failed allocations and a 1,568-byte largest free block.
+  The shared RGB plane completed 21 page transitions with zero image/sink
+  failures, at least 1,031,120 bytes free and a 737,280-byte largest block.
+  Physical page transitions are confirmed free of overlapping artwork.
+- The final normal package passes 100 register cycles / 212 replies and a
+  three-minute changing-value stream / 262 replies, with no protocol failures.
+  Maximum round trip was 1,322.5 ms under UI load; real-master timing and the
+  external header remain unverified. The temporary auto-cycle/diagnostic
+  register hook has been removed from the installed release.
+- Kiosk splash and app pictures now both use RGB565 on PSRAM targets.
+  A real-painter integration test verifies identical non-palette red before
+  and after app startup; the physical logo color handoff is confirmed clean.
+
+- All 26 native tests and 15 Node suites pass. Native tests cover RGB565 image
+  ownership, memory release, transparent corners, partial overlap, page copy,
+  canvas resize, generated-font alpha blending and direct LCD scanout.
+  Further page tests replace earlier artwork without a capture-forced redraw,
+  and send full-width RGB backgrounds through the real port cache in bounded
+  strips. At font 20 the background render buffer is at most 64 KiB.
+- Actual host MicroPython renders a multi-page private application with
+  blue gradients and native rounded panels. Pixel checks compare RGB565
+  output with the helper's RGBA PNG transport, and exercise pressed/released
+  skins and page navigation without a traceback.
+- Legacy exports retain palette mode and their existing allocation budgets.
+  New RGB exports declare their firmware capability; small-target exports
+  use the palette fallback. JSON round trips preserve the explicit choice.
+- The browser visual check was not completed: computer control could not
+  establish the current Chrome URL. Native captures and simulator transport
+  checks do not establish browser presentation or physical LCD correctness.
+
+## 0.8.0: smooth surface styling and complete slave banks
+
+- All Node suites pass, including solid/gradient surface generation,
+  selectable corners/colors, preserved fonts/callbacks, resource identity
+  and a transparency-key collision regression.
+- Host MicroPython export/pixel checks and all 26 native tests pass with
+  expanded PSRAM picture budgets. The package test covers saved startup
+  tracebacks in addition to deterministic packaging and cache repair.
+- Communication tests cover a 600-register holding bank, FC04 alias,
+  read/write hooks and a 123-register write fragmented across FIFO reads.
+- Browser checks cover the fixed Smooth surface controls, asset cleanup and
+  private project export. Physical CrowPanel Welcome-to-Home startup is
+  confirmed. A private application's original register map passes 100 update
+  cycles / 212 replies on isolated onboard UART: FC03/04/06/16, 123-register
+  block transfer, CRC/broadcast/station handling and exception replies.
+  Its external adapter and real machine have not been verified.
+- Physical controls in that private app read back the selected setpoint/PID
+  request while measurements continued updating. A ten-minute onboard UART
+  run completed 768 cycles / 1,546 replies with zero protocol failures; the
+  maximum round trip was 709.3 ms under UI load. Real-controller timeout and
+  external-header electrical compatibility remain separate checks.
+- `verify_startup.py` adds a deliberate 5.5-second setup delay: the hidden
+  window reaches its ready timer without exceeding the drawing-batch watchdog.
+  Retained pages are prepared outside the short creation/reveal frame holds.
+- Communication checks verify physical RX/TX byte counters and retained
+  receive-error details, including failures after the UART opens successfully.
+- Actual MicroPython receive-parser tests cover fragmented maximum FC16
+  requests, CRC recovery, foreign-station data and concatenated replies.
+  A cursor replaces unsupported bytearray item/slice deletion and compacts the
+  unconsumed tail once per parser call.
+
+## 0.7.0: paste placement and serial/register bindings
+
+- All 13 Node suites pass. Clipboard checks cover cross-page position
+  preservation and one-cell source-page offsets; browser checks confirmed
+  (3,4) → (3,4) across pages and (3,4) → (4,5) on the source page.
+- `verify_communications.py` passes with paired deterministic UART transports:
+  RTU/JSON/custom codecs, master/slave reads/writes, CRC/station/address/length
+  rejection, signed/unsigned/float values, word order and scaling, atomic write
+  rejection, no redundant redraws, stale-write guards, bounded/coalesced queues,
+  callback preservation and timer wraparound.
+- `verify_communication_runtime.py` executes generated code in real host
+  MicroPython and a compiled TDAPP: RTU CRC/encoding/reply and JSON encoding,
+  decimal labels, button/checkbox/slider register writes, and continued UI/timer
+  operation after physical UART open is rejected. Simulator source uses the
+  isolated bank; hardware export does not silently select simulation.
+- Browser verified the fixed communication settings pane, UART slave/custom
+  codec controls, named element binding fields, live address edits and exports.
+- Fresh TinyDesk host build `build-builder-20261104`: all 26 native tests pass,
+  including the local-socket `test_proto`. The new native Files test exercises
+  the compiled-file Run menu, F9 shell command and TDAPP double-click launch.
+- No MCU was flashed or physical machine UART driven for this release. Real
+  wiring/device timing and new firmware deployment remain hardware checks.
+
+## 0.6.1: element clipboard, transparent picture labels and smooth panels
+
+- All 12 Node suites pass, including new clipboard and appearance suites.
+- Browser verified single/group Ctrl+C/V, cross-page paste creating a canvas,
+  selection after paste, one-step Undo, unique names, and ordinary input-text
+  copying. Group image-backed text switched solid/transparent without errors.
+- Rectangle-to-smooth-panel and button-to-skin conversions embed the public
+  default artwork. The browser simulator renders smooth native edges and a
+  transparent picture label; pressing the button changes its text correctly.
+- The exact browser-exported TDAPP ran in real host MicroPython. Native output
+  contains all eight panel corner/edge pieces after drawing an interior label,
+  a skinned button, and changed label artwork after its click callback.
+- `verify_pixels.py` executes newly generated named panel/transparent-label
+  code against the actual tdui signatures, checks nine pieces, updates, and
+  small-panel fallback. Editor restoration metadata never reaches C API kwargs.
+- `verify_export.py`, `verify_controls.py`, `verify_fonts.py`,
+  `verify_simulation.py` and `verify_package.py` pass. Windows native compiler
+  and simulator checks ran outside the sandbox's DLL relocation restriction.
+- Geometric shapes retain the canvas grid resolution. Smooth panels/buttons
+  use artwork through existing firmware APIs; no firmware change or new board
+  performance claim is part of this release. Panel picture budgets are checked
+  before export, including the limit shared by visible windows.
+
 ## 0.6.0: native packages and consistent appearance
 
 - Browser verified mixed corner styles/radii, immediate group corner edits,

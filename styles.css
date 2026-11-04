@@ -85,3 +85,7 @@ html[data-ui-theme="dark"] .pixel-section textarea { background:#101c15; color:#
 .palette-grid button{padding:0;height:14px;border-radius:1px;border:1px solid #777}
 .palette-close{position:absolute;right:4px;top:4px;padding:0 5px}
 .drawing-outline button.multi-selected{background:var(--accent,#2176cf);color:white;border-color:#ffe080}
+
+.element-clipboard{display:flex;gap:6px;flex:none;padding:5px 16px;border-bottom:1px solid var(--line)}.element-clipboard button{padding:4px 12px}
+
+.element-clipboard{display:flex;gap:6px;flex:none;padding:5px 16px;border-bottom:1px solid var(--line)}.element-clipboard button{padding:4px 12px}

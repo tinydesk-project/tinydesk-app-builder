@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict'),S=require('../surface.js'),R=require('../resources.js'),T=require('../core.js');
+const round=S.resource({fill:'solid',color:'#ff00ff',corners:'round',border:0});
+const bytes=Buffer.from(round.data,'base64'),head=Buffer.from('P6\n128 64\n255\n'),pixel=(x,y)=>[...bytes.subarray(head.length+(y*128+x)*3,head.length+(y*128+x)*3+3)];
+assert.deepEqual(pixel(0,0),round.key);assert.notDeepEqual(round.key,[255,0,255]);assert.deepEqual(pixel(32,32),[255,0,255]);assert.deepEqual(pixel(96,32),[184,0,184]);
+assert.deepEqual(S.resource(S.defaults),S.resource(S.defaults));
+const rect={op:'rect',name:'panel',x:4,y:6,w:30,h:12};const panel=S.apply(rect,{corners:'straight',fill:'solid'});assert.equal(panel.element.op,'picture');assert(panel.element.edgeSlices);assert.equal(panel.element.surfaceStyle.corners,'straight');
+const label=S.apply({op:'picture',x:1,y:1,w:10,h:3,text:'25',font:{path:'/root/face.tdfont'}},{});assert.equal(label.element.font.path,'/root/face.tdfont');
+const button=S.apply({...T.Pixels.defaults.button,op:'button',name:'go',on_click:'clicked'},{});assert.equal(button.element.on_click,'clicked');assert.deepEqual(button.element.src_down,[64,0,64,64]);
+const d=T.initial();d.assets=[{name:'original.ppm',data:'AAA='}];R.storeImage(d,{name:'new.ppm',data:'BBB='});assert.equal(d.assets.length,2,'Missing originalName cannot alias an unrelated image');R.storeImage(d,panel.file);assert(d.assets.some(a=>a.name===panel.file.name));
+assert.throws(()=>S.resource({radius:90}),/radius/);assert.throws(()=>S.resource({color:'oops'}),/colors/);
+console.log('PASS: editable solid/gradient native surfaces, safe color keys, straight/rounded geometry, font/callback preservation and asset identity.');

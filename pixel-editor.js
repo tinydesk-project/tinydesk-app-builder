@@ -16,7 +16,7 @@ function editPixel(index=-1){
             '<p class="hint">'+(['big','put','fill'].includes(op.op)||TDPixels.cellUnits(op)?'Position and size in cells.':'Position and size in pixels (2 × 2 per cell).')+' Changes apply in this pane; no attribute window is opened.</p>';
         let basic='',appearance='';
         for(const [k,v] of Object.entries(op)){
-            if(k==='op'||k==='font'||k==='gradient'||k==='sourceAsset'||TDPixels.buttonEvents.includes(k))continue;
+            if(k==='op'||k==='font'||k==='gradient'||k==='sourceAsset'||k==='opaquePicture'||k==='edgeSlices'||k==='binding'||k==='surfaceStyle'||k==='bg'&&op.op==='picture'||TDPixels.buttonEvents.includes(k))continue;
             let part='';
             if(k==='asset'&&v){
                 part+='<fieldset><legend>Image on the board (loaded once)</legend>';
@@ -29,9 +29,11 @@ function editPixel(index=-1){
         }
         const fontChoice=typeof fontOptions==='function'&&['put','big','draw_text','font_text','button','picture'].includes(op.op);
         if(fontChoice)basic='<label class="field"><span>Font / pixel size</span><select id="elementFont">'+fontOptions(op.font?.path||'')+'</select></label><p class="hint">A generated font has a fixed pixel size. Use Fonts for another size; the font is loaded once by the app.</p><button id="generateElementFont">Generate another font…</button>'+basic;
+        if(TDAppearance.supportsTransparent(op))html+='<label class="field"><span>Text background</span><select id="textBackground"><option value="transparent" '+(op.bg===-2?'selected':'')+'>Transparent</option><option value="solid" '+(op.bg!==-2?'selected':'')+'>'+(op.op==='picture'?'Original image background':'Solid color')+'</option></select></label><p class="hint">Transparent text shows the artwork beneath the glyphs. Image-backed labels keep their geometry and font.</p>';
+        if(op.op==='rect')html+='<button id="smoothPanel">Use smooth rounded panel skin</button><p class="hint">Creates an editable image-backed blue panel with corners at the LCD’s native resolution, like skinned buttons. Bounds snap outward to whole cells. Undo returns to this rectangle.</p>';
+        if(op.op==='button')html+='<button id="smoothButton">Use smooth rounded button skin</button><p class="hint">Native-resolution normal/pressed artwork. The optional sprite-sheet settings below control its image.</p>';
         html+='<div class="pixel-fields">'+basic+'</div>';
-        if(['put','big','draw_text','font_text'].includes(op.op))html+='<label class="field"><span>Text background</span><select id="textBackground"><option value="transparent" '+(op.bg===-2?'selected':'')+'>Transparent</option><option value="solid" '+(op.bg!==-2?'selected':'')+'>Solid color</option></select></label><p class="hint">Transparent text shows the artwork beneath the glyphs. Set Background below for a solid color.</p>';
-        if('radius' in op)html+='<label class="field"><span>Corner style</span><select id="cornerStyle">'+(op.asset?'<option value="skin" selected>Image skin corners</option>':'')+'<option value="square" '+(!op.asset&&op.radius===0?'selected':'')+'>Straight corners</option><option value="round" '+(!op.asset&&op.radius>0?'selected':'')+'>Rounded corners</option></select></label><p class="hint">'+(op.asset?'The skin supplies its own shape. Choose Straight or Rounded to replace the image skin with the button’s colors.':'Changes redraw immediately. Rounding needs at least 6 pixels of height (3 cells for buttons). Later opaque elements can cover the corners.')+'</p>';
+        if('radius' in op&&!op.surfaceStyle)html+='<label class="field"><span>Corner style</span><select id="cornerStyle">'+(op.asset?'<option value="skin" selected>Image skin corners</option>':'')+'<option value="square" '+(!op.asset&&op.radius===0?'selected':'')+'>Straight corners</option><option value="round" '+(!op.asset&&op.radius>0?'selected':'')+'>Rounded corners</option></select></label><p class="hint">'+(op.asset?'The skin supplies its own shape. Choose Straight or Rounded to replace the image skin with the button’s colors.':'Changes redraw immediately. Rounding needs at least 6 pixels of height (3 cells for buttons). Later opaque elements can cover the corners.')+'</p>';
         if(op.op==='slider'){
             const handler=design.handlers[op.on_change];
             const targets=design.windows.flatMap(w=>w.widgets.flatMap(o=>o.paint)).filter(p=>p.name&&['gauge','bar','put','picture','big','draw_text'].includes(p.op));
@@ -68,7 +70,10 @@ function editPixel(index=-1){
                 }catch(error){$('#pixelError').textContent=error.message;}
             };
         }
-        if($('#textBackground'))$('#textBackground').onchange=e=>{const input=root.querySelector('[data-pixel-key="bg"]');input.value=e.target.value==='transparent'?-2:Number(input.value)>=0?input.value:25;$('#pixelSave').click();show(keepAppearance);};
+        if($('#textBackground'))$('#textBackground').onchange=e=>{
+            try{readFields(op);snapshot('element:'+o.id+':'+index);const resource=TDAppearance.resourceFor(design.assets,TDAppearance.clearResource);op=TDAppearance.textBackground(op,e.target.value==='transparent',resource.name);if(op.op==='picture'&&op.bg===-2&&!design.assets?.some(a=>a.name===resource.name))TDResources.storeImage(design,resource);show(keepAppearance);$('#pixelSave').click();}catch(error){$('#pixelError').textContent=error.message;}
+        };
+        if($('#smoothPanel'))$('#smoothPanel').onclick=()=>{try{readFields(op);snapshot('element:'+o.id+':'+index);const resource=TDAppearance.resourceFor(design.assets,TDBuiltinAssets['ui_skin.ppm'],'td_smooth_panel.ppm');if(!design.assets?.some(a=>a.name===resource.name))TDResources.storeImage(design,resource);op=TDAppearance.smoothPanel(op,resource.name);show();$('#pixelSave').click();}catch(error){$('#pixelError').textContent=error.message;}};
         if($('#cornerStyle'))$('#cornerStyle').onchange=e=>{
             if(e.target.value==='skin')return;
             const radius=root.querySelector('[data-pixel-key="radius"]');radius.value=e.target.value==='square'?0:Math.max(3,Number(radius.value)||6);
@@ -93,6 +98,7 @@ function editPixel(index=-1){
         };
         $('#pixelKind').onchange=e=>{const kind=e.target.value;op=kind==='big'?{op:'big',x:0,y:0,text:'123',scale:2,width:4,fg:231,bg:25}:kind==='put'?{op:'put',x:0,y:0,text:'Label',fg:231,bg:25}:kind==='fill'?{op:'fill',x:0,y:0,w:10,h:2,ch:' ',fg:231,bg:25}:{op:kind,...TD.clone(TDPixels.defaults[kind])};if(['slider','gauge'].includes(kind))op.radius=0;op.name=op.op==='button'?unique('pixel_button'):'';if(kind==='font_text'){const file=design.assets?.find(f=>/\.tdfont$/i.test(f.name));if(file)op.font={path:'/root/'+file.name};}show();};
         if(op.op==='button'){
+            $('#smoothButton').onclick=()=>{try{readFields(op);rememberDrafts();snapshot('element:'+o.id+':'+index);const resource=TDAppearance.resourceFor(design.assets,TDBuiltinAssets['ui_skin.ppm'],'td_smooth_panel.ppm');if(!design.assets?.some(a=>a.name===resource.name))TDResources.storeImage(design,resource);op.asset={path:'/root/'+resource.name,w:256,h:128,key:[255,0,255],dither:false};op.src=[0,0,64,64];op.src_down=[64,0,64,64];op.border=16;show(true);$('#pixelSave').click();}catch(error){$('#pixelError').textContent=error.message;}};
             $('#buttonSkin').onchange=()=>{
                 try{readFields(op);}catch(e){$('#pixelError').textContent=e.message;return;}
                 rememberDrafts();
@@ -165,9 +171,11 @@ function editPixel(index=-1){
         for(const textarea of root.querySelectorAll('[data-event-body],#controlBody'))textarea.addEventListener('change',()=>$('#pixelSave').click());
         root.onfocusout=()=>{historyGroup=null;};
         window.TDGradientInspector?.(root,op,gradient=>{try{readFields(op);if(gradient){if(op.op==='button'&&op.asset)removeSkin();op.gradient=gradient;}else delete op.gradient;show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
+        window.TDRegisterInspector?.(root,op,(binding,refresh)=>{try{readFields(op);if(binding){op.binding=binding;if(!op.name)op.name=unique('field');}else delete op.binding;if(refresh)show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
+        window.TDSurfaceInspector?.(root,op,style=>{try{readFields(op);snapshot();const surface=TDSurface.apply(op,style);if(!design.assets?.some(a=>a.name===surface.file.name))TDResources.storeImage(design,surface.file);op=surface.element;show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
     }
     function rememberDrafts(){for(const el of root.querySelectorAll('[data-event-body]'))drafts[el.dataset.eventBody]=el.value;}
-    function removeSkin(){delete op.asset;delete op.src;delete op.src_down;delete op.border;}
+    function removeSkin(){delete op.asset;delete op.src;delete op.src_down;delete op.border;delete op.surfaceStyle;}
     function readFields(target){
         for(const el of root.querySelectorAll('[data-pixel-key]')){
             const parts=el.dataset.pixelKey.split('.'),key=parts.pop(),obj=parts.length?target[parts[0]]:target,old=obj[key];

@@ -41,7 +41,12 @@
    if(cellCanvas.width!==frame.cols*cw||cellCanvas.height!==frame.rows*ch){cellCanvas.width=frame.cols*cw;cellCanvas.height=frame.rows*ch;}
    const context=cellCanvas.getContext('2d'),rect=host.querySelector('.xterm-screen').getBoundingClientRect(),images=host.querySelector('.xterm-image-layer');
    TDSimulationFrame.paint(context,frame,cw,ch,color);
-   if(images)context.drawImage(images,0,0,cellCanvas.width,cellCanvas.height);
+   if(value.rgb){
+    const bytes=Uint8Array.from(atob(value.rgb),c=>c.charCodeAt(0));
+    const bitmap=await createImageBitmap(new Blob([bytes],{type:'image/png'}));
+    if(run!==generation||terminal!==target){bitmap.close();return value;}
+    context.drawImage(bitmap,0,0,cellCanvas.width,cellCanvas.height);bitmap.close();
+   }else if(images)context.drawImage(images,0,0,cellCanvas.width,cellCanvas.height);
    cellCanvas.style.width=rect.width+'px';cellCanvas.style.height=rect.height+'px';host.classList.add('native-frame');
   }
   return value;
@@ -57,7 +62,7 @@
   const run=++generation;
   dialog.showModal();
   if(!token){status('Start python tools/studio_simulator.py and open http://127.0.0.1:8773/ to run the real app. Save JSON here first, then import it there.');return;}
-  if(protocol!=='3'){status('Reload App Builder and restart python tools/studio_simulator.py to use native simulation frames. Your saved design is kept.');return;}
+  if(!['3','4'].includes(protocol)||design.colorMode==='rgb565'&&design.board>2000&&protocol!=='4'){status('Reload App Builder and restart python tools/studio_simulator.py to use current native RGB simulation frames. Your saved design is kept.');return;}
   const validation=TD.validate(design);if(validation.errors.length){status(validation.errors.join(' '));return;}
   status('Starting the generated Python. Mouse, keyboard, pages and timers run in TinyDesk. Hardware UART and machine timing need board testing.');
   const host=dialog.querySelector('#simulationTerminal');host.replaceChildren();host.classList.remove('native-frame');cellCanvas=null;
@@ -68,7 +73,7 @@
   try{
    await alignCellPixels(host,design.screen.w,design.screen.h,terminal,run);if(run!==generation)return;
    const paths=[...TDResources.required(design).values()];
-   const result=await request('start',{protocol:3,source:TD.generate(design,{bundle:true,embedDesign:false}),cols:design.screen.w,rows:design.screen.h,paths,modules:design.modules||[],assets:design.assets||[],binaries:design.binaryDependencies||[]});if(run!==generation){if(result.session)request('stop',{},result.session).catch(()=>{});return;}active=true;status('Running exported app. Use the mouse and keyboard; Stop and edit returns to your design.');terminal.focus();poll();}
+   const result=await request('start',{protocol:design.colorMode==='rgb565'&&design.board>2000?4:3,source:TD.generate(design,{bundle:true,embedDesign:false,simulation:true}),cols:design.screen.w,rows:design.screen.h,paths,modules:TDCommunications.simulationModules(design),assets:design.assets||[],binaries:design.binaryDependencies||[]});if(run!==generation){if(result.session)request('stop',{},result.session).catch(()=>{});return;}active=true;status('Running exported app.'+(design.communication?.mode&&design.communication.mode!=='none'?' Serial registers are SIMULATED; no hardware UART is opened.':'')+' Use the mouse and keyboard; Stop and edit returns to your design.');terminal.focus();poll();}
   catch(e){if(run===generation){status(e.message);active=false;}}finally{if(run===generation)busy=false;}
  };
  dialog.querySelector('#stopSimulation').onclick=stop;

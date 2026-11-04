@@ -12,6 +12,20 @@ spec = importlib.util.spec_from_file_location('tdui', base.SOURCE)
 api = importlib.util.module_from_spec(spec)
 sys.modules['tdui'] = api
 spec.loader.exec_module(api)
+assert api.render_cache(64) is None, 'Optional cache must tolerate an older native module'
+assert api.render_cache_info() == (0,) * 12
+assert api.scanout_info() == (0,) * 8
+assert api.scanout_timing() == (0,) * 4
+transport.scanout_timing=lambda:(1,2,3,4)
+assert api.scanout_timing()==(1,2,3,4)
+del transport.scanout_timing
+transport.scanout_info=lambda:tuple(range(8))
+assert api.scanout_info()==tuple(range(8))
+del transport.scanout_info
+cache_calls=[]
+transport.render_cache=lambda kb,warm:cache_calls.append((kb,warm))
+api.render_cache(0,False);assert cache_calls==[(0,False)]
+del transport.render_cache
 api.run = lambda: None
 scope = {}
 source = (base.FIXTURES / 'pixel_controls.py').read_text(encoding='utf-8')
@@ -100,4 +114,29 @@ rects = [r for r in board.requests if r[0] == api._RECT]
 assert len(rects) >= 2 and all(r[8] == 18 for r in rects)
 c._event(api._EV_MOUSE,2,1,0,1,None)
 print('PASS: label changes retain pressed appearance.')
+
+# New image-backed text/panels must execute against tdui's real signatures:
+# editor-only restoration metadata must never leak into Canvas.picture kwargs.
+import subprocess
+generated = subprocess.check_output(['node', '-e', r'''
+const T=require('./core.js'), A=require('./appearance.js'), d=T.initial();
+d.board=32000;d.windows[0].fullscreen=true;
+const c=T.widget('canvas','appearance_canvas',0,0);Object.assign(c,{w:40,h:15});
+const panel=A.smoothPanel({op:'rect',name:'smooth_panel',x:0,y:0,w:80,h:20});
+const label=A.textBackground({...panel,name:'clear_label',x:3,y:3,w:25,h:2,text:'Transparent'},true);
+c.paint=[panel,label];d.windows[0].widgets=[c];
+process.stdout.write(T.generate(d,{embedDesign:false}));
+'''], cwd=base.ROOT, text=True, encoding='utf-8')
+board.requests.clear()
+appearance = {}
+exec(compile(generated, 'appearance.py', 'exec'), appearance)
+picture_requests = [r for r in board.requests if r[0] == api._PICTURE]
+assert len(picture_requests) == 10, 'Nine panel pieces and one clear label'
+assert {(r[4], r[5]) for r in picture_requests[:9]} == {(x,y) for x in (0,2,38) for y in (0,1,9)}
+assert picture_requests[-1][10][10:] == b'Transparent'
+appearance['clear_label'].set(text='Updated')
+assert board.requests[-2][10][10:] == b'Updated'
+appearance['smooth_panel'].set(w=4, h=2)
+assert len([r for r in board.requests if r[0] == api._PICTURE]) == 12, 'Small panels safely fall back to one image'
+print('PASS: smooth panel edge pieces, clear image-backed label updates, real tdui signatures and small-panel fallback.')
 

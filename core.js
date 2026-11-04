@@ -3,6 +3,7 @@
 'use strict';
 const Pixels=typeof module!=='undefined'?require('./pixels.js'):root.TDPixels;
 const Fonts=typeof module!=='undefined'?require('./fonts.js'):root.TDFonts;
+const Communications=typeof module!=='undefined'?require('./communications.js'):root.TDCommunications;
 const TYPES=['label','button','checkbox','textbox','progress','list','canvas'];
 const EVENTS={window:{on_ready:'win',on_close:'win',on_key:'win, key',on_resize:'win, w, h'},label:{},button:{on_click:'button'},checkbox:{on_change:'box'},textbox:{on_enter:'textbox',on_change:'textbox'},progress:{},list:{on_select:'items',on_activate:'items'},canvas:{on_mouse:'cv, x, y, button, action'}};
 const KEYWORDS=new Set(('False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield').split(' '));
@@ -46,9 +47,22 @@ function canvasGroups(w){
 }
 
 function usage(d){return {windows:d.windows.length,widgets:d.windows.reduce((n,w)=>n+pageTabs(w,d).length+w.widgets.reduce((n,o)=>n+(o.type==='list'?2:1),0),0),cells:d.windows.reduce((n,w)=>n+canvasGroups(w).reduce((n,g)=>n+g.w*g.h*g.pages,0),0),pixels:Pixels.pixelBytes(d,canvasGroups)};}
+function pictureUsage(d){
+    const count=p=>p.op==='picture'?(p.edgeSlices&&p.w>=5&&p.h>=3?9:1):p.op==='font_text'||p.op==='button'&&(p.asset||p.font)?1:0;
+    let retained=0,visible=0;
+    for(const w of d.windows){
+        const n=o=>(o.paint||[]).reduce((sum,p)=>sum+count(p),0);
+        retained+=w.widgets.reduce((sum,o)=>sum+n(o),0);
+        visible+=Math.max(0,...pagesOf(w).map(page=>w.widgets.filter(o=>o.visible&&(o.page===null||o.page===page.id)).reduce((sum,o)=>sum+n(o),0)));
+        if(d.colorMode==='rgb565'&&d.board>2000)visible+=canvasGroups(w).reduce((n,g)=>n+Math.ceil(g.h/2),0);
+    }
+    return {retained,visible};
+}
 function validate(d){normalize(d);const errors=[],warnings=[],names=new Set(['tdui','time','machine','asyncio','show_page','canvas_page','_TD_PARK','_TD_PAGES']);const error=s=>errors.push(s);const number=(n,min,max)=>Number.isInteger(n)&&n>=min&&n<=max;const name=(n)=>{if(!identifier(n)||n.length>32)error('Invalid Python identifier (use at most 32 ASCII characters): '+n);if(n.startsWith('_td_'))error('Names beginning _td_ are reserved for page helpers: '+n);if(names.has(n))error('Duplicate or reserved name: '+n);names.add(n);};const text=(s,max,label)=>{if(bytes(s)>max)error(label+' exceeds '+max+' UTF-8 bytes.');if(/[\0\r\n]/.test(s))error(label+' must be a single line without NUL.');};
+const communication=Communications.validate(d);errors.push(...communication.errors);warnings.push(...communication.warnings);
 if(!number(d.screen.w,20,300)||!number(d.screen.h,5,150))error('Screen must be 20–300 columns × 5–150 rows.');
 if(d.compilation&&(!['bytecode','native'].includes(d.compilation.mode)||d.compilation.mode==='native'&&!['xtensawin','rv32imc'].includes(d.compilation.arch)))error('Choose a supported compiled app target.');
+if(d.renderCache!==undefined&&!['auto',0,64,128].includes(d.renderCache))error('Choose Auto, Off, 64 KiB or 128 KiB for the render cache.');
 if(d.application&&!/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/.test(d.application.version))error('Application version must use major.minor.patch, for example 1.0.0.');
 if(d.startup){
  const s=d.startup;
@@ -59,6 +73,9 @@ if(d.startup){
 for(const f of Fonts.assets(d)){const file=d.assets?.find(a=>a.name===f.path.split('/').pop());if(file?.data){try{Fonts.decode(Uint8Array.from(typeof atob==='function'?atob(file.data):Buffer.from(file.data,'base64').toString('binary'),c=>c.charCodeAt(0)));}catch(e){error('Invalid generated font '+f.path+': '+e.message);}}else warnings.push('Font '+f.path+' is external; import it to make a portable project.');}
 const u=usage(d);if(u.windows<1||u.windows>4)error('Use 1–4 windows.');if(u.widgets>48)error('Widget budget exceeded: '+u.widgets+'/48 (lists count as two).');if(u.cells>d.board)error('Canvas budget exceeded: '+u.cells+'/'+d.board+' cells.');
 if(u.pixels>(d.board===2000?16384:2097152))error('Pixel budget exceeded: '+u.pixels+' bytes (canvas pages and image masks included).');
+const pictures=pictureUsage(d),pictureLimit=d.board===2000?48:512;
+if(pictures.retained>pictureLimit)error('Native picture budget exceeded: '+pictures.retained+'/'+pictureLimit+' across cached pages (smooth panels use nine).');
+if(pictures.visible>(d.board===2000?64:128))error('Visible native picture budget exceeded: '+pictures.visible+'/'+(d.board===2000?64:128)+'. Reduce pictures or smooth panels on a page.');
 for(const w of d.windows)for(const o of w.widgets)for(const p of o.paint){
     if(p.op!=='button'&&p.name)name(p.name);
     if(p.op==='slider'&&(!p.name||p.on_change&&(!d.handlers[p.on_change]||d.handlers[p.on_change].args.split(',').length!==1)))error('Slider needs a name and an optional one-argument change handler.');
@@ -170,6 +187,12 @@ function generate(input,overrides={}){
         '','_TD_PAGES = hasattr(tdui.Canvas, "draw_to")'];
     if(d.provenance)lines.splice(1,0,('# App Builder '+d.provenance.lastEditedWith+' / project schema '+d.version+' / app '+(d.application?.version||'0.1.0')).replace(/[\r\n]/g,' '));
     const {cells,pixels}=usage(d),images=Pixels.assets(d),fonts=Fonts.assets(d);
+    if(d.colorMode==='rgb565'&&d.board>2000){
+        lines.push('if not getattr(tdui, "SUPPORTS_RGB_PICTURES", False):','    raise OSError("Update TinyDesk firmware for RGB565 pictures.")','tdui.enable_rgb_pictures()');
+        if(typeof d.renderCache==='number')lines.push('if hasattr(tdui, "render_cache"):','    tdui.render_cache('+py(d.renderCache)+', '+(d.renderCache?'True':'False')+')');
+    }
+    const pictureBudget=pictureUsage(d);if(pictureBudget.retained>192||pictureBudget.visible>64)lines.push('if getattr(tdui, "MAX_PICTURES", 192) < '+pictureBudget.retained+' or getattr(tdui, "MAX_VISIBLE_PICTURES", 64) < '+pictureBudget.visible+':','    raise OSError("Update TinyDesk firmware for this many smooth surfaces.")');
+    const communicationRuntime=Communications.preamble(d);if(communicationRuntime)lines.push(communicationRuntime);
     const fontRef=p=>p.font?'_td_font_'+fonts.findIndex(f=>f.path===p.font.path):null;
     if(fonts.length)lines.push('if not hasattr(tdui, "Font"):', '    raise OSError("Update TinyDesk firmware for generated bitmap fonts.")');
     const modern=d.windows.some(w=>w.widgets.some(o=>o.paint.some(Pixels.isPixel)));
@@ -213,7 +236,7 @@ function generate(input,overrides={}){
                     lines.push(indent+'global '+p.name,indent+'if '+p.name+' is None:');
                     call(p.name+' = '+o.name+'.button',Pixels.args(p,image,fontRef(p)),indent+'    ');
                     lines.push(indent+'else:',indent+'    '+p.name+'.draw()');
-                }else call(p.op==='gauge'?'_td_gauge':o.name+'.'+p.op,[...(p.op==='gauge'?[o.name]:[]),...Pixels.args(p,image,fontRef(p))],indent);
+                }else {const helper=p.op==='gauge'?'_td_gauge':p.op==='picture'&&p.edgeSlices?'_td_panel':null;call(helper||o.name+'.'+p.op,[...(helper?[o.name]:[]),...Pixels.args(p,image,fontRef(p))],indent);}
             }else if(p.op==='big'){
                 lines.push(indent+'if hasattr('+o.name+', "big"):');
                 call(o.name+'.big',[p.x,p.y,p.text,p.fg,p.bg,p.scale,p.width].map(v=>arg(v)),indent+'    ');
@@ -225,9 +248,18 @@ function generate(input,overrides={}){
     }
     lines.push('',...(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>p.name&&p.op!=='button')))?CANVAS_RUNTIME:CANVAS_RUNTIME.slice(CANVAS_RUNTIME.indexOf('class _TDNoBatch'))).trim().split('\n'),'','# --- tdui-editor layout begin ---');
     if(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>['gauge','slider'].includes(p.op)))))lines.push(...CONTROL_RUNTIME.trim().split('\n'));
+    if(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>p.edgeSlices))))lines.push(...PANEL_RUNTIME.trim().split('\n'));
+    const hiddenStartup=d.startup?.mode==='custom';
+    if(hiddenStartup)lines.push('_td_preparing = True');
     for(const w of d.windows){
+        const openingAt=lines.length;
         call(w.name+' = tdui.Window',[arg(w.title),arg(w.w),arg(w.h),arg(w.x,'x'),arg(w.y,'y'),arg(w.resizable,'resizable')]);
         if(w.fullscreen)lines.push(w.name+'.fullscreen()');
+        if(hiddenStartup){
+            lines.push(w.name+'.minimize()');
+            const opening=lines.splice(openingAt);
+            lines.push('with tdui.batch() if hasattr(tdui, "batch") else _td_no_batch:',...opening.map(s=>'    '+s));
+        }
         for(const o of [...w.widgets,...pageTabs(w,d)]){
             const args=[arg(o.x),arg(o.y)];
             switch(o.type){
@@ -302,9 +334,9 @@ function generate(input,overrides={}){
         for(const p of o.paint)if(p.name&&p.op!=='button'){
             const spec={...p};delete spec.op;delete spec.name;
             const image=p.asset?'_td_image_'+images.findIndex(a=>Pixels.assetKey(a)===Pixels.assetKey(p.asset)):null;
-            delete spec.asset;delete spec.font;delete spec.sourceAsset;
+            delete spec.asset;delete spec.font;delete spec.sourceAsset;delete spec.opaquePicture;delete spec.edgeSlices;delete spec.binding;delete spec.surfaceStyle;if(p.op==='picture')delete spec.bg;
             const callback=spec.on_change;delete spec.on_change;
-            call(p.name+' = _TDField',[o.name,arg(page),arg(p.op),arg(spec),image||'None',callback||'None',fontRef(p)||'None']);
+            call(p.name+' = _TDField',[o.name,arg(page),arg(p.op==='picture'&&p.edgeSlices?'panel':p.op),arg(spec),image||'None',callback||'None',fontRef(p)||'None']);
         }
     });
     let groupId=0;
@@ -331,19 +363,16 @@ function generate(input,overrides={}){
         for(const t of w.timers)call(w.name+'.'+t.kind,[arg(t.ms),t.fn]);
         if(startup?.durationMs>0&&startup.page!==w.initialPage)
             call(w.name+'.after',[arg(startup.durationMs),'lambda: _td_show_'+w.name+'('+py(w.pages.find(p=>p.id===w.initialPage).name)+')']);
-        if(d.startup?.mode==='custom')readyCalls.push(...lines.splice(readyAt));
+        readyCalls.push(...lines.splice(readyAt));
     }
-    if(d.startup?.mode==='custom'){
-        // Construct the entire first view in one frame. In particular, do
-        // not expose the theme-colored empty Window before its artwork.
-        const at=lines.indexOf('# --- tdui-editor layout begin ---')+1;
-        const initialization=lines.splice(at);
-        lines.push('with _td_batch():',...initialization.map(s=>s?'    '+s:''));
-        // User callbacks can initialize hardware or load files; run them
-        // after the complete entry view is committed, outside its batch.
-        lines.push(...readyCalls);
+    if(hiddenStartup){
+        // Prepare retained pages behind the kiosk artwork without a long
+        // global frame hold. Reveal only the completed entry view.
+        lines.push('_td_preparing = False','with _td_batch():',...d.windows.map(w=>'    '+w.name+'.focus()'));
     }
-    lines.push('','tdui.run()');
+    const linkSetup=Communications.setup(d,!!opts.simulation);
+    if(linkSetup.length)lines.push('',...linkSetup,...readyCalls,'','try:','    tdui.run()','finally:','    _td_link.close()');
+    else lines.push(...readyCalls,'','tdui.run()');
     if(opts.embedDesign){
         const chunks=[];let chunk='';
         for(const ch of JSON.stringify(d)){if((chunk+ch).length>64){chunks.push(chunk);chunk='';}chunk+=ch;}
@@ -354,6 +383,28 @@ function generate(input,overrides={}){
     for(const line of lines){if(line.startsWith('def ')){let n=0;for(let i=spaced.length-1;i>=0&&spaced[i]==='';i--)n++;while(n++<2)spaced.push('');}spaced.push(line);}
     return spaced.join('\n')+'\n';
 }
+// Keep corner/edge pictures independent so an interior label does not replace
+// a whole native panel in the firmware's overlapping-picture cache.
+const PANEL_RUNTIME=`
+def _td_panel(cv, img, x, y, w, h, src=None, border=16, text="", fg=231, scale=0, font=None):
+    if w < 5 or h < 3 or border < 1 or (src and (src[2] <= border*2 or src[3] <= border*2)):
+        cv.picture(img, x, y, w, h, src=src, border=border, text=text, fg=fg, scale=scale, font=font)
+        return
+    sx, sy, sw, sh = src or (0, 0, img.width, img.height)
+    b = min(border, sw // 2, sh // 2)
+    cols, rows = (2, w-4, 2), (1, h-2, 1)
+    source_x, source_y = (sx, sx+b, sx+sw-b), (sy, sy+b, sy+sh-b)
+    source_w, source_h = (b, sw-2*b, b), (b, sh-2*b, b)
+    yy = y
+    with _td_batch():
+        for row in range(3):
+            xx = x
+            for col in range(3):
+                label = text if row == 1 and col == 1 else ""
+                cv.picture(img, xx, yy, cols[col], rows[row], src=(source_x[col], source_y[row], source_w[col], source_h[row]), text=label, fg=fg, scale=scale, font=font)
+                xx += cols[col]
+            yy += rows[row]
+`;
 // A single runtime handles cached pictures and the older separate-canvas path.
 const CONTROL_RUNTIME=`
 _td_controls = []
@@ -364,7 +415,7 @@ def _td_gauge(cv, x, y, w, h, value, maximum=100, color=220, track=244, bg=17, g
     rx = max(1, min(w // 2 - 1, h - 7))
     ry = max(1, rx // 2)  # Terminal pixels are twice as tall as wide.
     cx, cy = x + w // 2, y + ry
-    with cv.batch():
+    with _td_batch():
         cv.rect(x, y, w, h, bg, radius=radius, gradient=gradient)
         for i in range(10):
             a, b = points[i], points[i+1]
@@ -378,7 +429,7 @@ def _td_gauge(cv, x, y, w, h, value, maximum=100, color=220, track=244, bg=17, g
         cv.draw_text(x+1, y+h-5, str(value), color, bg=tdui.CLEAR, small=True)
 
 def _td_slider(cv, x, y, w, h, value, maximum=100, color=220, track=17, knob=231, gradient=None, radius=0):
-    with cv.batch():
+    with _td_batch():
         cv.rect(x*2, y*2, w*2, h*2, track, radius=radius, gradient=gradient)
         cv.line(x*2, y*2+h, (x+w)*2-1, y*2+h, color)
         at = max(0,min(w-1,int(value)*(w-1)//maximum))
@@ -437,6 +488,8 @@ class _TDField:
                 _td_gauge(self.cv, **self.values)
             elif self.method == 'slider':
                 _td_slider(self.cv, **self.values)
+            elif self.method == 'panel':
+                _td_panel(self.cv, **self.values)
             else:
                 getattr(self.cv, self.method)(**self.values)
         finally:
@@ -451,10 +504,11 @@ class _TDNoBatch:
         return False
 
 _td_no_batch = _TDNoBatch()
+_td_preparing = False
 
 
 def _td_batch():
-    return tdui.batch() if hasattr(tdui, "batch") else _td_no_batch
+    return tdui.batch() if not _td_preparing and hasattr(tdui, "batch") else _td_no_batch
 
 
 _td_canvas_groups = {}
@@ -561,6 +615,8 @@ function parse(source){
     const int=(n,min,max)=>Number.isInteger(n)&&n>=min&&n<=max;
     if(!record(d)||d.version!==1||!record(d.screen)||!Array.isArray(d.windows)||!record(d.handlers)||!['dark','classic'].includes(d.theme)||![2000,8000,32000].includes(d.board)||typeof d.name!=='string')bad('Unsupported or incomplete design format.');
     if(d.compilation!==undefined&&(!record(d.compilation)||!['bytecode','native'].includes(d.compilation.mode)||d.compilation.mode==='native'&&!['xtensawin','rv32imc'].includes(d.compilation.arch)))bad('Invalid compilation target.');
+    if(d.colorMode!==undefined&&!['palette','rgb565'].includes(d.colorMode))bad('Invalid native picture color mode.');
+    if(d.renderCache!==undefined&&!['auto',0,64,128].includes(d.renderCache))bad('Invalid render cache option.');
     if(d.startup!==undefined&&(!record(d.startup)||!['status','custom'].includes(d.startup.mode)||!int(d.startup.durationMs,0,600000)||typeof d.startup.page!=='string'||typeof d.startup.image!=='string'||/[\\/:\0]/.test(d.startup.image)))bad('Invalid startup screen settings.');
     for(const key of ['provenance','application'])if(d[key]!==undefined&&(!record(d[key])||Object.values(d[key]).some(v=>typeof v!=='string'||v.length>128||/[\0\r\n]/.test(v))))bad('Invalid project version metadata.');
     for(const key of ['assets','binaryDependencies'])if(d[key]!==undefined&&(!Array.isArray(d[key])||d[key].length>128||d[key].some(a=>!record(a)||typeof a.name!=='string'||a.name.length>64||!a.name||/[\\/:\0]/.test(a.name)||typeof a.data!=='string'||a.data.length>6000000||!/^[A-Za-z0-9+/]*={0,2}$/.test(a.data))))bad('Invalid embedded project resource.');

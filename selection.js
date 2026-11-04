@@ -1,13 +1,13 @@
 /* Pure common-property and group-transform rules. Coordinates are cells. */
 (function(root){
  'use strict';
- const skip=new Set(['id','name','op','type','x','y','w','h','x2','y2','r','page','events','paint','items','asset','sourceAsset','src','src_down','goToPage']);
+ const skip=new Set(['id','name','op','type','x','y','w','h','x2','y2','r','page','events','paint','items','asset','sourceAsset','src','src_down','goToPage','opaquePicture','edgeSlices','binding']);
  const cells=p=>!p.op||['picture','button','slider','font_text','put','big','fill'].includes(p.op);
  const applicable=(p,key)=>!p.type||['fg','bg','visible'].includes(key)||key==='text'&&['label','button','checkbox','textbox'].includes(p.type)||key==='checked'&&p.type==='checkbox'||key==='secret'&&p.type==='textbox'||key==='value'&&p.type==='progress';
  const Pixels=typeof module!=='undefined'?require('./pixels.js'):root.TDPixels;
  const fontKinds=['put','big','draw_text','font_text','button','picture'];
  const supportsCorners=p=>['rect','bar','button','slider','gauge'].includes(p.op);
- const supportsTransparent=p=>['put','big','draw_text','font_text'].includes(p.op);
+ const supportsTransparent=p=>['put','big','draw_text','font_text'].includes(p.op)||p.op==='picture'&&!!p.text;
  function properties(p){
   const out={...p};
   if(p.op&&Pixels.defaults[p.op])Object.assign(out,Pixels.defaults[p.op],p);

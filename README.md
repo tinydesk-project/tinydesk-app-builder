@@ -1,4 +1,138 @@
-# TinyDesk App Builder 0.6.0
+# TinyDesk App Builder 0.10.0
+
+## Faster page focus
+
+Updated TinyDesk firmware reuses losslessly compressed RGB artwork across
+retained pages. Identical panels/buttons share one cached representation.
+Changes to a label, source image, font style or geometry invalidate its
+appearance; hidden-page changes appear when that page is selected.
+
+**Export options → RAM artwork cache** offers Automatic, Off, 64 KiB and
+128 KiB. Automatic uses up to 128 KiB for compressed pixels plus a small
+index on PSRAM targets. It skips allocation when memory is low. Pages keep
+their logical state; the cache evicts old artwork when full and skips images
+that do not compress well. It does not allocate a full framebuffer per page.
+
+Retained controls are constructed before `on_ready` as before. After the
+visible UI is ready, idle ticks gradually rasterize hidden artwork, one
+bounded item at a time. Input, drawing batches and pending redraws take
+priority. RGB row copies and repeated-row reuse also speed up uncached work.
+These improvements live in C and apply to existing RGB `.tdapp` packages.
+Explicit cache choices remain compatible with older firmware, which renders
+normally without the optional cache API. See [validation](VALIDATION.md).
+
+## RGB pictures on PSRAM targets
+
+In **Export options → Native picture colors**, choose **RGB565 · Preserve
+RGB colors** for CrowPanel/S3 PSRAM designs. Imported images, smooth surfaces,
+gradients and transparent-corner underlays retain RGB565 colors in the native
+renderer instead of being reduced to the terminal palette. The matching
+firmware must expose `tdui.SUPPORTS_RGB_PICTURES`; unsupported firmware reports
+the missing capability before constructing the app.
+
+Restart the local helper and reload Builder for native RGB simulation frames
+(helper protocol 4). The simulator composites the actual C-rendered RGB frame
+over native cells. Existing projects remain palette-based until explicitly
+changed; small-target exports retain their palette fallback. RGB mode costs
+two additional bytes per decoded image/coarse canvas/background pixel and one
+visible backdrop picture per two canvas rows. Export budgets include these costs.
+Terminals without direct RGB scanout use a bounded per-picture Sixel palette
+(up to 256 source colors, RGB332 fallback for more complex pictures).
+
+Partially overlapping native pictures retain their detailed background
+corners. Updating a lower picture invalidates overlapping pictures above it,
+so labels and controls remain visible after redraw.
+
+CrowPanel uses one shared RGB display plane instead of retaining another
+full-size copy of every overlapping picture. Image fallback downsampling
+uses a bounded row buffer. Both changes prevent the measured cache exhaustion
+that left old artwork behind during page switches. Startup kiosk artwork and
+RGB app pictures use the same RGB565 colors. See [validation](VALIDATION.md)
+for measured hardware results and serial timing limits.
+
+## Editable smooth surfaces and full register banks
+
+Select a rectangle, image-backed panel or button and use **Smooth surface**
+in the fixed Inspector. Choose **Solid / Gradient**, both colors, gradient
+direction, **Rounded / Straight**, radius, border width and border color.
+Changes regenerate embedded, native-resolution artwork while retaining the
+element's text, font, bindings and callbacks. Buttons include a matching
+pressed state. Use **Apply smooth surface** to commit all fields together.
+The Assets pane lists these generated textures alongside imported images.
+
+Smooth panels use up to nine picture slots. Updated PSRAM firmware supports
+512 cached pictures and 128 visible pictures; smaller targets retain their
+48/64 limits. Export validates the design and checks firmware capabilities
+before loading a design that exceeds the older limits. Rebuild firmware for
+the expanded budgets; the Builder cannot add native capacity by itself.
+
+Slave communications can allocate a complete holding-register bank and alias
+FC04 reads to it. RTU framing uses the function's declared length, so a valid
+request may span several UART FIFO reads. The embedded runtime also supports
+application write/read hooks for metadata, clocks and command acknowledgments.
+See [Communications](docs/COMMUNICATIONS.md).
+
+If a packaged application's main module raises an exception, its revision
+cache retains `startup-error.txt`. This makes failures inspectable even when
+kiosk artwork covers the terminal. A failed app still reports its exception.
+
+Custom startup builds retained pages in a minimized window, then reveals the
+completed entry page. Only window creation and reveal hold a drawing frame;
+slow page preparation no longer consumes the bounded drawing-batch timeout.
+
+## Serial/register apps and precise paste placement
+
+**Communications** adds None, Modbus master/slave (RTU) and UART master/slave
+in the fixed Inspector. Configure UART/TX/RX, baud, parity, data/stop bits,
+optional RS-485 DE, station and timing. Supported elements then show **Register
+binding**: table/address, read/write direction, 16/32-bit signed/unsigned or
+float values, word order, scaling and event-driven writes. UART defaults to
+the same RTU register language, with JSON Lines and a custom Python codec
+option. Exports embed version 1 of the runtime; TDAPP stays self-contained.
+
+Simulation uses an isolated local register bank. Try the editable
+[register panel](examples/register_panel.json), then read the
+[communication guide](docs/COMMUNICATIONS.md) for configuration, register
+numbering, custom protocols, limits and deployment. Physical serial timing
+and a real PLC have not been verified by the host tests.
+
+Pasting onto another page preserves window-relative coordinates. Pasting
+onto the source page offsets by one cell in each direction, increasing one
+cell for successive pastes on that page. Bounds are clamped to fit.
+
+TinyDesk's Files/Desktop changes give compiled `.mpy`/`.tdapp` files a Python
+icon, **Run (F9)** in Files, and direct launch on double-click. Source `.py`
+files retain their text-editor Open action and Run context menu. These native
+desktop changes need updated TinyDesk firmware; Builder changes load on reload.
+
+## Element clipboard and native-resolution panels
+
+Ctrl+C / Ctrl+V now copy and paste a selected element or group, including
+selection from Outline. Ctrl+X cuts, and the canvas toolbar has Copy/Paste
+buttons. Paste works on another page, creates unique names, copies referenced
+handlers/artwork and supports Undo. Text/code fields retain normal browser
+clipboard behavior. Callback references outside the copied group keep their
+existing meaning; a different app still needs its controller/setup code.
+
+Text background → Transparent now also works for image-backed labels, such
+as the labels in imported HMI projects. It embeds a tiny keyed clear image,
+preserving text, font and geometry. Original image background restores the
+previous artwork. Group text selections offer the same control.
+
+Geometric rectangles use the device's coarse 2×2 canvas pixel grid. Their
+rounded edges remain visible at that resolution. For smooth LCD-resolution
+corners, choose **Smooth panel** in the GUI gallery, or select a rectangle and
+choose **Use smooth rounded panel skin**. This converts it to an editable
+image-backed blue panel using the same native nine-slice path as skinned
+buttons, with transparent corners and no dithering. Bounds snap outward to
+whole cells. Corner and edge pieces remain separate so interior text cannot
+discard the whole panel. Keep overlaid labels at least two cells from its
+left/right edges and one row from its top/bottom. A panel uses nine native
+picture slots (one when too small); design checks enforce the board and
+visible-page picture limits. The existing button's **Use sprite sheet** setting supplies its
+smooth normal/pressed artwork; geometric corner/color/gradient controls remain
+available when that image skin is disabled. All artwork travels with JSON and
+TDAPP; no new firmware API is required.
 
 ## Native export and shared appearance
 

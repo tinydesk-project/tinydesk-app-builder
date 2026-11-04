@@ -30,7 +30,7 @@
   });
  }
  function storeImage(design,file,target=null){
-  const paths=required(design),files=design.assets||[],old=files.find(f=>f.name===file.originalName)||files.find(f=>f.originalName===file.originalName);
+  const paths=required(design),files=design.assets||[],old=file.originalName?(files.find(f=>f.name===file.originalName)||files.find(f=>f.originalName===file.originalName)):files.find(f=>f.name===file.name);
   // An exact required filename takes priority over the old importer's
   // asset_N aliases. Re-import repairs that reference without adding a widget.
   const name=target||(paths.has(file.originalName)?file.originalName:old?.name)||file.name;

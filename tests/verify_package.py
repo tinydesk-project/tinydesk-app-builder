@@ -46,4 +46,9 @@ with tempfile.TemporaryDirectory(prefix='tdapp-test-') as tmp:
     helper.write_bytes(b'broken cache')
     subprocess.run([str(runtime),'wait=500','key=Enter','wait=700','type=py -m 512 /root/test.tdapp\\r','wait=1700'],cwd=tmp,capture_output=True,timeout=12,check=True)
     assert helper.read_bytes()==files['helper.mpy'],'Damaged cached code must be repaired from the verified package'
+    failed=build(compiler,project,"raise RuntimeError('startup diagnostic test')")
+    (fs/'failed.tdapp').write_bytes(failed)
+    subprocess.run([str(runtime),'wait=500','key=Enter','wait=700','type=py -m 512 /root/failed.tdapp\\r','wait=1700'],cwd=tmp,capture_output=True,timeout=12,check=True)
+    errors=list(fs.glob('.tdapp-*/startup-error.txt'))
+    assert len(errors)==1 and 'RuntimeError: startup diagnostic test' in errors[0].read_text(), 'Kiosk startup failures must leave an inspectable traceback'
 print('PASS: TDAPP round trip, bundled module/image, checksum rejection and actual MicroPython launch.')

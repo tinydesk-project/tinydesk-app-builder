@@ -18,6 +18,40 @@ import os
 import time
 from micropython import const
 SUPPORTS_GRADIENT_FILLS = const(1)
+SUPPORTS_RGB_PICTURES = bool(getattr(_tdui, "SUPPORTS_RGB_PICTURES", False))
+
+def enable_rgb_pictures():
+    # Opt in before creating images/canvases. Existing apps keep their budget.
+    if not SUPPORTS_RGB_PICTURES:
+        return False
+    return _tdui.enable_rgb_pictures()
+
+def graphics_info():
+    # Cumulative renders/allocation failures/local-sink failures, free PSRAM,
+    # largest free PSRAM block, and the last completed frame time in ms.
+    return _tdui.graphics_info()
+
+def scanout_info():
+    # Local RGB scanout pressure counters, separate from drawing statistics.
+    info = getattr(_tdui, "scanout_info", None)
+    return info() if info is not None else (0,) * 8
+
+def scanout_timing():
+    # Last LCD submission time (monotonic ms), last/peak/total paint work us.
+    info = getattr(_tdui, "scanout_timing", None)
+    return info() if info is not None else (0,) * 4
+
+def render_cache(kb=128, warm=True):
+    # Optional bounded, lossless RGB artwork cache. Zero disables it.
+    configure = getattr(_tdui, "render_cache", None)
+    if configure is not None:
+        return configure(kb, warm)
+
+def render_cache_info():
+    # capacity, bytes used, hits, misses, evictions, warmed pictures,
+    # raster ms, decode ms, picture frames, total/peak/last picture-frame ms.
+    info = getattr(_tdui, "render_cache_info", None)
+    return info() if info is not None else (0,) * 12
 
 # Requests and events (td_apps.h TD_PYUI_*).
 _OPEN = const(1)
@@ -78,6 +112,8 @@ MAX_WIDGETS = const(48)
 MAX_CELLS = _tdui.MAX_CELLS   # all canvases together, pages counted: 2000, more with PSRAM
 MAX_PAGES = const(16)         # pages of one canvas
 MAX_PIXELS = _tdui.MAX_PIXELS # bytes of images and canvas pixels together
+MAX_PICTURES = getattr(_tdui, "MAX_PICTURES", 192 if MAX_CELLS > 2000 else 48)
+MAX_VISIBLE_PICTURES = getattr(_tdui, "MAX_VISIBLE_PICTURES", 64)
 CLEAR = const(-2)             # a colour: none of its own (text and blanks over a
                               # canvas's pixels show them; in an image, transparent)
 

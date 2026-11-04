@@ -12,6 +12,9 @@ import subprocess
 import tempfile
 import threading
 import time
+import struct
+import zlib
+import binascii
 from app_package import build as build_package, compile_source
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +28,7 @@ class Simulation:
         self.offset = 0
         self.project_dirs = [Path(p).resolve() for p in project_dirs]
         self.session = None
+        self.rgb_mode = False
 
     def stop(self):
         self.session = None
@@ -41,7 +45,8 @@ class Simulation:
     def exchange(self, actions):
         if not self.process or self.process.poll() is not None:
             raise ValueError('Simulation stopped. Run it again.')
-        self.process.stdin.write(('\n'.join(actions+['save=terminal.bin','cells=frame.bin','done'])+'\n').encode())
+        captures=(['rgbframe=rgb-frame.bin'] if self.rgb_mode else [])+['save=terminal.bin','cells=frame.bin','done']
+        self.process.stdin.write(('\n'.join(actions+captures)+'\n').encode())
         self.process.stdin.flush()
         # The simulator keeps advancing timers while awaiting further input.
         # All actions are bounded and come from this helper, not shell text.
@@ -62,15 +67,27 @@ class Simulation:
         if not frame.is_file():
             self.stop()
             raise ValueError('This tdsim build cannot capture native frames. Rebuild tdsim, then restart the helper.')
-        return {'output':base64.b64encode(chunk).decode(),'frame':base64.b64encode(frame.read_bytes()).decode()}
+        result={'output':base64.b64encode(chunk).decode(),'frame':base64.b64encode(frame.read_bytes()).decode()}
+        if self.rgb_mode:
+            raw=(Path(self.work.name)/'rgb-frame.bin').read_bytes()
+            if len(raw)<8 or raw[:4]!=b'TDRG':raise ValueError('Rebuild tdsim for native RGB frames.')
+            w,h=struct.unpack('<HH',raw[4:8])
+            if not 1<=w<=4096 or not 1<=h<=4096 or len(raw)!=8+w*h*4:raise ValueError('Invalid native RGB frame.')
+            def block(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',binascii.crc32(kind+data)&0xffffffff)
+            pixels=memoryview(raw)[8:]
+            scan=b''.join(b'\0'+pixels[y*w*4:(y+1)*w*4].tobytes() for y in range(h))
+            png=b'\x89PNG\r\n\x1a\n'+block(b'IHDR',struct.pack('>IIBBBBB',w,h,8,6,0,0,0))+block(b'IDAT',zlib.compress(scan,3))+block(b'IEND',b'')
+            result['rgb']=base64.b64encode(png).decode()
+        return result
 
     def start(self, body):
         self.stop()
-        if body.get('protocol', 2) not in (2,3):
+        if body.get('protocol', 2) not in (2,3,4):
             raise ValueError('Reload App Builder to use the current simulation helper.')
         source, cols, rows = body['source'], int(body['cols']), int(body['rows'])
         if not isinstance(source,str) or len(source)>5_000_000 or not 20<=cols<=300 or not 5<=rows<=150:
             raise ValueError('Invalid simulation source or dimensions.')
+        self.rgb_mode='\ntdui.enable_rgb_pictures()\n' in source
         self.work = tempfile.TemporaryDirectory(prefix='tinydesk-studio-')
         root = Path(self.work.name)/'tinydesk_fs/root'
         root.mkdir(parents=True)
@@ -173,7 +190,7 @@ def main():
 
         def do_GET(self):
             if self.path.split('?')[0] in ('/','/index.html'):
-                data = (ROOT/'index.html').read_text(encoding='utf-8').replace('<head>','<head><meta name="studio-simulation-token" content="'+token+'"><meta name="studio-simulation-protocol" content="3">').encode()
+                data = (ROOT/'index.html').read_text(encoding='utf-8').replace('<head>','<head><meta name="studio-simulation-token" content="'+token+'"><meta name="studio-simulation-protocol" content="4">').encode()
                 self.send_response(200)
                 self.send_header('Content-Type','text/html; charset=utf-8')
                 self.send_header('Cache-Control','no-store')

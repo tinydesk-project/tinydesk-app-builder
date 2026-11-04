@@ -77,14 +77,15 @@ function validate(p,o,error){
     if('border' in p&&!integer(p.border,0,32767))error(o.name+': border must be nonnegative.');
 }
 function pixelBytes(d,groups){
+    const native=d.colorMode==='rgb565'&&d.board>2000;
     let bytes=Fonts.assets(d).reduce((n,a)=>{const f=d.assets?.find(f=>f.name===a.path.split('/').pop());return n+(f?Math.floor(f.data.length*3/4)+48:0);},0);
-    bytes+=assets(d).reduce((n,a)=>n+a.w*a.h*(a.key===null?1:2),0);
+    bytes+=assets(d).reduce((n,a)=>n+a.w*a.h*((a.key===null?1:2)+(native?2:0)),0);
     for(const w of d.windows)for(const o of w.widgets)for(const p of o.paint||[])
-        if(cellUnits(p)&&(p.asset?.key!=null||p.op==='font_text'&&p.bg===-2))bytes+=4*p.w*p.h; // transparent picture background
+        if(cellUnits(p)&&(p.asset?.key!=null||p.op==='font_text'&&p.bg===-2))bytes+=4*p.w*p.h*(native?3:1); // transparent picture background
     for(const w of d.windows)for(const o of w.widgets)for(const p of o.paint||[])
         if(p.font&&p.text)bytes+=new TextEncoder().encode(p.text).length+17;
     for(const w of d.windows)for(const g of groups(w))
-        if(g.members.some(o=>o.paint.some(isPixel)))bytes+=g.w*g.h*g.pages*4;
+        if(g.members.some(o=>o.paint.some(isPixel)))bytes+=g.w*g.h*g.pages*4*(native?3:1);
     return bytes;
 }
 // Arguments stay structured until core.js quotes and wraps each Python call.
@@ -115,7 +116,8 @@ function preview(ctx,p,x,y,color,assetImage=null){
     const nine=(image,src,dx,dy,dw,dh,border)=>{
         const [sx,sy,sw,sh]=src||[0,0,image.width,image.height],b=Math.max(0,Math.min(border||0,sw/2,sh/2));
         if(!b){ctx.drawImage(image,sx,sy,sw,sh,dx,dy,dw,dh);return;}
-        const bx=Math.min(b/5,dw/2),by=Math.min(b/10,dh/2),xs=[sx,sx+b,sx+sw-b,sx+sw],ys=[sy,sy+b,sy+sh-b,sy+sh],xx=[dx,dx+bx,dx+dw-bx,dx+dw],yy=[dy,dy+by,dy+dh-by,dy+dh];
+        const slices=p.edgeSlices&&p.w>=5&&p.h>=3&&sw>2*b&&sh>2*b;
+        const bx=slices?4:Math.min(b/5,dw/2),by=slices?2:Math.min(b/10,dh/2),xs=[sx,sx+b,sx+sw-b,sx+sw],ys=[sy,sy+b,sy+sh-b,sy+sh],xx=[dx,dx+bx,dx+dw-bx,dx+dw],yy=[dy,dy+by,dy+dh-by,dy+dh];
         ctx.imageSmoothingEnabled=false;
         for(let r=0;r<3;r++)for(let c=0;c<3;c++)if(xs[c+1]>xs[c]&&ys[r+1]>ys[r]&&xx[c+1]>xx[c]&&yy[r+1]>yy[r])ctx.drawImage(image,xs[c],ys[r],xs[c+1]-xs[c],ys[r+1]-ys[r],xx[c],yy[r],xx[c+1]-xx[c],yy[r+1]-yy[r]);
     };
@@ -175,8 +177,8 @@ function preview(ctx,p,x,y,color,assetImage=null){
         nativeLabel(p.text,p.fg,p.scale);
     }else{
         const k=cellUnits(p)?2:1;
-        ctx.fillStyle=color(p.asset?.preview??238);ctx.fillRect(p.x*k,p.y*k,p.w*k,p.h*k);
-        if(assetImage){
+        if(!assetImage&&!(p.op==='picture'&&p.bg===-2)){ctx.fillStyle=color(p.asset?.preview??238);ctx.fillRect(p.x*k,p.y*k,p.w*k,p.h*k);}
+        if(assetImage&&!(p.op==='picture'&&p.bg===-2)){
             nine(assetImage,p.src,p.x*k,p.y*k,p.w*k,p.h*k,p.border);
         }
         if(!p.text&&!assetImage){ctx.strokeStyle=color(244);ctx.lineWidth=.3;ctx.strokeRect(p.x*k,p.y*k,p.w*k,p.h*k);}
