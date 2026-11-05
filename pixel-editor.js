@@ -16,7 +16,7 @@ function editPixel(index=-1){
             '<p class="hint">'+(['big','put','fill'].includes(op.op)||TDPixels.cellUnits(op)?'Position and size in cells.':'Position and size in pixels (2 × 2 per cell).')+' Changes apply in this pane; no attribute window is opened.</p>';
         let basic='',appearance='';
         for(const [k,v] of Object.entries(op)){
-            if(k==='op'||k==='font'||k==='gradient'||k==='sourceAsset'||k==='opaquePicture'||k==='edgeSlices'||k==='binding'||k==='surfaceStyle'||k==='bg'&&op.op==='picture'||TDPixels.buttonEvents.includes(k))continue;
+            if(k==='op'||k==='font'||k==='gradient'||k==='sourceAsset'||k==='opaquePicture'||k==='edgeSlices'||k==='binding'||k==='surfaceStyle'||k==='qr'||k==='bg'&&op.op==='picture'||TDPixels.buttonEvents.includes(k))continue;
             let part='';
             if(k==='asset'&&v){
                 part+='<fieldset><legend>Image on the board (loaded once)</legend>';
@@ -172,6 +172,7 @@ function editPixel(index=-1){
         root.onfocusout=()=>{historyGroup=null;};
         window.TDGradientInspector?.(root,op,gradient=>{try{readFields(op);if(gradient){if(op.op==='button'&&op.asset)removeSkin();op.gradient=gradient;}else delete op.gradient;show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
         window.TDRegisterInspector?.(root,op,(binding,refresh)=>{try{readFields(op);if(binding){op.binding=binding;if(!op.name)op.name=unique('field');}else delete op.binding;if(refresh)show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
+        window.TDQrInspector?.(root,op,qr=>{try{readFields(op);snapshot();const made=TDQr.apply(op,qr);if(!design.assets?.some(a=>a.name===made.file.name))TDResources.storeImage(design,made.file);op=made.element;show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
         window.TDSurfaceInspector?.(root,op,style=>{try{readFields(op);snapshot();const surface=TDSurface.apply(op,style);if(!design.assets?.some(a=>a.name===surface.file.name))TDResources.storeImage(design,surface.file);op=surface.element;show(keepAppearance);$('#pixelSave').click();}catch(e){$('#pixelError').textContent=e.message;}});
     }
     function rememberDrafts(){for(const el of root.querySelectorAll('[data-event-body]'))drafts[el.dataset.eventBody]=el.value;}

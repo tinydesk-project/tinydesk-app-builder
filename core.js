@@ -335,7 +335,7 @@ function generate(input,overrides={}){
         for(const p of o.paint)if(p.name&&p.op!=='button'){
             const spec={...p};delete spec.op;delete spec.name;
             const image=p.asset?'_td_image_'+images.findIndex(a=>Pixels.assetKey(a)===Pixels.assetKey(p.asset)):null;
-            delete spec.asset;delete spec.font;delete spec.sourceAsset;delete spec.opaquePicture;delete spec.edgeSlices;delete spec.binding;delete spec.surfaceStyle;if(p.op==='picture')delete spec.bg;
+            delete spec.asset;delete spec.font;delete spec.sourceAsset;delete spec.opaquePicture;delete spec.edgeSlices;delete spec.binding;delete spec.surfaceStyle;delete spec.qr;if(p.op==='picture')delete spec.bg;
             const callback=spec.on_change;delete spec.on_change;
             call(p.name+' = _TDField',[o.name,arg(page),arg(p.op==='picture'&&p.edgeSlices?'panel':p.op),arg(spec),image||'None',callback||'None',fontRef(p)||'None']);
         }

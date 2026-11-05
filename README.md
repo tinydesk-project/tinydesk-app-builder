@@ -1,4 +1,4 @@
-# TinyDesk App Builder 0.11.0
+# TinyDesk App Builder 0.12.0
 
 ## Faster page focus
 
@@ -263,6 +263,10 @@ are opened with Import. They are never built-in App Builder examples.
   edits apply directly and track mouse changes. Alt-click selects the canvas.
   Duplicate,
   delete and layer-order actions support Undo.
+- **QR code** (GUI gallery): a QR code for an address or link (up to 106
+  bytes), stored as a tiny picture at one pixel per module (a few KB) and
+  loaded scaled by a whole number to its square box, so it is sharp and
+  quick to show. Its Inspector edits the text and the two colors.
 - The GUI gallery includes text, buttons, sliders, gauges, meters, panels
   and images. Native components include labels, checkboxes, textboxes,
   lists and progress indicators. Slider binding can update another named

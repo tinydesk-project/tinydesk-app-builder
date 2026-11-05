@@ -6,7 +6,21 @@ change between minor versions, but the apps it made keep running (see
 [COMPATIBILITY.md](COMPATIBILITY.md)). Each release's test record is in
 [VALIDATION.md](VALIDATION.md).
 
-## 0.11.0 (unreleased)
+## 0.12.0 (unreleased)
+
+* **QR code element:** GUI elements → **QR code** adds a QR code (byte
+  mode, level L, versions 1 to 5, up to 106 bytes; default
+  `http://192.168.4.1`). It is a picture made from a generated PPM at one
+  pixel per module with its quiet zone (about 5 KB for a 200 x 200 pixel
+  code), which the device loads scaled by a whole number to the box: every
+  module stays sharp and nothing new is needed in the firmware. The
+  Inspector's **QR code** fields change the text and colors; keep the box
+  square in pixels (on an 80 x 24 design, the width in cells twice the
+  height). The encoder (`qr.js`) is checked against the QR standard's
+  format table and, module for module, against the original Melter HMI's
+  encoder (`tests/qr.test.cjs`).
+
+## 0.11.0
 
 * **Its own project:** TinyDesk Studio is now TinyDesk App Builder, in the
   repository `tinydesk-project/tinydesk-app-builder`, with its own versions
