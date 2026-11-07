@@ -15,6 +15,20 @@ for(const name of fs.readdirSync(path.join(__dirname,'fixtures')).filter(n=>n.en
  assert(py.split('\n').every(line=>line.length<=100));assert(py.indexOf('tdui.run()')<py.indexOf('# tdui-editor design 1/'));
  assert.deepEqual(T.parse(JSON.stringify(d)),d);
 });
+test('library exports call the pinned tdapp, embedded ones carry the runtime',()=>{
+ const contract=JSON.parse(fs.readFileSync(path.join(__dirname,'..','vendor','tinydesk','tdapp_contract.json'),'utf8'));
+ const names=new Set(Object.keys(contract.python.module));
+ for(const f of fs.readdirSync(path.join(__dirname,'..','examples')).filter(n=>n.endsWith('.json'))){
+  const d=T.parse(fs.readFileSync(path.join(__dirname,'..','examples',f),'utf8'));
+  const lib=T.generate(d,{embedDesign:false}),emb=T.generate(d,{embedDesign:false,embedRuntime:true});
+  assert(lib.includes('    import tdapp\n'),f);assert(lib.includes('if tdapp.VERSION < (1, 0):'),f);
+  assert(!/^(class _TD|def _td_(batch|gauge|slider|panel|make_canvas|show_canvases|crc))/m.test(lib),f+': runtime copied into a library export');
+  for(const m of lib.matchAll(/tdapp\.([A-Za-z_]+)/g))assert(names.has(m[1]),f+': tdapp.'+m[1]+' is not in the pinned tdapp contract');
+  assert(contract.version[0]===1&&contract.version[1]>=0);
+  assert(!emb.includes('import tdapp'),f);assert(emb.length>lib.length,f);
+  assert.deepEqual(T.parse(T.generate(d)),d);
+ }
+});
 test('fixture covers all widgets and timers',()=>{const d=fixture('all_widgets');assert.deepEqual(new Set(d.windows[0].widgets.map(o=>o.type)),new Set(T.TYPES));assert.deepEqual(d.windows[0].timers.map(t=>t.kind),['every','after']);});
 test('4 windows accepted, 5 refused',()=>{const d=blank();d.windows=Array.from({length:4},(_,i)=>({...T.windowModel(i+1),name:'win'+i,widgets:[]}));accepted(d);d.windows.push({...T.windowModel(5),name:'win5'});refused(d,/1–4/);});
 test('48 widgets accepted, 49 refused',()=>{const d=blank();for(let i=0;i<48;i++)object(d,'label','label_'+i);accepted(d);object(d,'label','extra');refused(d,/49\/48/);});
@@ -42,7 +56,7 @@ test('callback, timer, color and paint checks',()=>{let d=fixture('example');del
 test('canvas parking is fixed and independent of the design screen',()=>{
  const d=fixture('two_pages');
  const park=source=>source.split('\n').filter(s=>s.includes('.move(_TD_PARK, _TD_PARK)'));
- const small=T.generate(d);d.screen={w:100,h:30};const large=T.generate(d);
+ const small=T.generate(d,{embedRuntime:true});d.screen={w:100,h:30};const large=T.generate(d,{embedRuntime:true});
  assert.equal((small.match(/^_TD_PARK = 1000$/gm)||[]).length,1);
  assert.equal(park(small).length,1);assert.deepEqual(park(small),park(large));
  assert(!/\.move\((80, 25|100, 30)\)/.test(small+'\n'+large));

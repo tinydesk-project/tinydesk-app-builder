@@ -2,7 +2,7 @@
 from pathlib import Path
 import os,subprocess,tempfile,re
 root=Path(__file__).resolve().parents[1]
-runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
+runtime=__import__('runtime_path').tdsim()
 with tempfile.TemporaryDirectory(prefix='kiosk-transition-') as tmp:
     files=Path(tmp)/'tinydesk_fs/root';files.mkdir(parents=True)
     (files/'logo.ppm').write_bytes(b'P6\n10 20\n255\n'+bytes([255,0,0])*200)

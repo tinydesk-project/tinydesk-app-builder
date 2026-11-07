@@ -23,12 +23,15 @@ size−1 (up to 1024 registers); zero keeps only addresses declared by bindings.
 bank with FC04. Its default is off, preserving separate input-register tables.
 Full-bank addresses are available even without a visible bound element.
 
-Advanced application setup can assign `_td_link.on_write(table, address,
+The link is a `tdapp.Link` from TinyDesk's app library, named `_td_link` in
+the app. Advanced application setup can assign `_td_link.on_write(table, address,
 words)` and `_td_link.before_read(table, address, count)`. The write hook runs
 after a validated commit, including broadcast writes. The read hook runs
 before a validated read reply, allowing clock or acknowledgment registers.
 Hooks run on the application loop and must return promptly. They can update
-`_td_link.bank[(table,address)]`; register words remain unsigned 0–65535.
+`_td_link.bank[(table,address)]` (or call `_td_link.put(table, address,
+words...)`, which also redraws bound elements); register words remain
+unsigned 0–65535.
 
 GPIO/UART availability depends on the board. Hardware access requires root.
 The app uses `machine.UART` and does not change TinyDesk's console or reserved

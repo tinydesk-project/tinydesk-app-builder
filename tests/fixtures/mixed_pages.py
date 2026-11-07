@@ -4,126 +4,24 @@ import tdui
 if getattr(tdui, "MAX_CELLS", 2000) < 180:
     raise OSError("Design needs 180 canvas cells; update TinyDesk firmware.")
 
-_TD_PARK = 1000
-
-_TD_PAGES = hasattr(tdui.Canvas, "draw_to")
-
-class _TDNoBatch:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, kind, value, traceback):
-        return False
-
-_td_no_batch = _TDNoBatch()
-_td_preparing = False
-
-
-def _td_batch():
-    return tdui.batch() if not _td_preparing and hasattr(tdui, "batch") else _td_no_batch
-
-
-_td_canvas_groups = {}
-_td_window_groups = {}
-
-
-def _td_make_canvas(win, x, y, w, h, pages):
-    if _TD_PAGES:
-        cv = win.canvas(x, y, w, h, pages=pages)
-    else:
-        cv = win.canvas(x, y, w, h)
-    cv._td_parked = False
-    return cv
-
-
-def _td_alias_canvas(base, win, x, y, w, h):
-    if _TD_PAGES:
-        return base
-    return _td_make_canvas(win, x, y, w, h, 1)
-
-
-def _td_hide_canvas(cv, clear=False):
-    if clear:
-        cv.fill(0, 0, cv.width, cv.height, " ", -1, -1)
-    if not cv._td_parked:
-        cv.move(_TD_PARK, _TD_PARK)
-        cv._td_parked = True
-
-
-def _td_place_canvas(cv, x, y):
-    if cv._td_parked:
-        cv.move(x, y)
-        cv._td_parked = False
-
-
-def _td_select_canvas(cv, page):
-    # _PAGE supports draw and show together: one atomic request, not two.
-    cv.drawing = page
-    cv.showing = page
-    cv._req2(19, page, page, 0, 0, 0, 0, None)
-
-
-def _td_register_canvas(win, group, base, cv, own, page, x, y, paint, visible, mouse):
-    record = _td_canvas_groups.get(group)
-    if record is None:
-        record = [base, x, y, []]
-        _td_canvas_groups[group] = record
-        _td_window_groups.setdefault(win, []).append(record)
-    record[3].append((cv, own, page, paint, visible, mouse))
-    if _TD_PAGES:
-        cv.draw_to(page)
-        paint()
-
-
-def _td_show_canvases(win, name):
-    for base, x, y, entries in _td_window_groups.get(win, ()):
-        active = None
-        for entry in entries:
-            cv, own, page, paint, visible, mouse = entry
-            if not _TD_PAGES:
-                _td_hide_canvas(cv, True)
-            if visible and (own is None or own == name):
-                active = entry
-        if active is None:
-            if _TD_PAGES:
-                _td_hide_canvas(base)
-            continue
-        cv, own, page, paint, visible, mouse = active
-        _td_place_canvas(cv, x, y)
-        if _TD_PAGES:
-            if len(entries) > 1:
-                _td_select_canvas(cv, page)
-        else:
-            paint()
-        cv.on_mouse = mouse
-
-
-def canvas_page(cv, name):
-    # Use the returned canvas: aliases share an object only on newer firmware.
-    for base, x, y, entries in _td_canvas_groups.values():
-        found = False
-        for entry in entries:
-            if entry[0] is cv:
-                found = True
-                break
-        if found:
-            for target, own, page, paint, visible, mouse in entries:
-                if own is None or own == name:
-                    if _TD_PAGES:
-                        target.draw_to(page)
-                    return target
-    raise ValueError("unknown canvas page")
+try:
+    import tdapp
+except ImportError:
+    raise OSError("Update TinyDesk firmware: this app uses the tdapp library.")
+if tdapp.VERSION < (1, 0):
+    raise OSError("Update TinyDesk firmware for tdapp 1.0.")
+canvas_page = tdapp.canvas_page
 
 # --- tdui-editor layout begin ---
 win = tdui.Window("Device monitor", 62, 19, x=None, y=None, resizable=True)
 main_label = win.label(2, 1, "MAIN", width=20)
-main_canvas = _td_make_canvas(win, 2, 3, 20, 3, 2)
+main_canvas = tdapp.make_canvas(win, 2, 3, 20, 3, 2)
 settings_label = win.label(2, 1, "SETTINGS", width=20)
-settings_canvas = _td_alias_canvas(main_canvas, win, 2, 3, 20, 3)
+settings_canvas = tdapp.alias_canvas(main_canvas, win, 2, 3, 20, 3)
 next_page = win.button(2, 16, "Settings")
-extra_canvas = _td_make_canvas(win, 30, 3, 10, 2, 1)
-all_canvas = _td_make_canvas(win, 30, 8, 10, 2, 1)
-hidden_canvas = _td_make_canvas(win, 30, 12, 10, 2, 1)
+extra_canvas = tdapp.make_canvas(win, 30, 3, 10, 2, 1)
+all_canvas = tdapp.make_canvas(win, 30, 8, 10, 2, 1)
+hidden_canvas = tdapp.make_canvas(win, 30, 12, 10, 2, 1)
 _td_tab_win_0 = win.button(0, 18, "Main")
 _td_tab_win_1 = win.button(9, 18, "Settings")
 _td_tab_win_2 = win.button(22, 18, "Info")
@@ -134,33 +32,33 @@ _td_tab_win_2 = win.button(22, 18, "Info")
 
 
 def _td_paint_main_canvas():
-    with _td_batch():
+    with tdapp.batch():
         main_canvas.fill(0, 0, 20, 3, " ", -1, 234)
         main_canvas.fill(0, 0, 20, 3, ".", 115, 234)
         main_canvas.put(1, 1, "MAIN", 115, 234)
 
 
 def _td_paint_settings_canvas():
-    with _td_batch():
+    with tdapp.batch():
         settings_canvas.fill(0, 0, 20, 3, " ", -1, 234)
         settings_canvas.fill(0, 0, 20, 3, ".", 214, 234)
         settings_canvas.put(1, 1, "SETTINGS", 214, 234)
 
 
 def _td_paint_extra_canvas():
-    with _td_batch():
+    with tdapp.batch():
         extra_canvas.fill(0, 0, 10, 2, " ", -1, -1)
         extra_canvas.put(0, 0, "extra_ca", 81, 234)
 
 
 def _td_paint_all_canvas():
-    with _td_batch():
+    with tdapp.batch():
         all_canvas.fill(0, 0, 10, 2, " ", -1, -1)
         all_canvas.put(0, 0, "all_canv", 81, 234)
 
 
 def _td_paint_hidden_canvas():
-    with _td_batch():
+    with tdapp.batch():
         hidden_canvas.fill(0, 0, 10, 2, " ", -1, -1)
         hidden_canvas.put(0, 0, "hidden_c", 81, 234)
 
@@ -168,7 +66,7 @@ _td_page_names_win = ["Main", "Settings", "Info"]
 
 
 def _td_show_win(name):
-    with _td_batch():
+    with tdapp.batch():
         _td_apply_win(name)
 
 
@@ -178,7 +76,7 @@ def _td_apply_win(name):
     main_label.visible = name == "Main"
     settings_label.visible = name == "Settings"
     next_page.visible = True
-    _td_show_canvases(win, name)
+    tdapp.show_canvases(win, name)
 
 
 def show_page(name, window=None):
@@ -219,7 +117,7 @@ next_page.on_click = _td_go_next_page
 _td_tab_win_0.on_click = _td_go__td_tab_win_0
 _td_tab_win_1.on_click = _td_go__td_tab_win_1
 _td_tab_win_2.on_click = _td_go__td_tab_win_2
-_td_register_canvas(
+tdapp.register_canvas(
     win,
     0,
     main_canvas,
@@ -232,7 +130,7 @@ _td_register_canvas(
     True,
     mouse_0,
 )
-_td_register_canvas(
+tdapp.register_canvas(
     win,
     0,
     main_canvas,
@@ -245,7 +143,7 @@ _td_register_canvas(
     True,
     mouse_1,
 )
-_td_register_canvas(
+tdapp.register_canvas(
     win,
     1,
     extra_canvas,
@@ -258,7 +156,7 @@ _td_register_canvas(
     True,
     None,
 )
-_td_register_canvas(
+tdapp.register_canvas(
     win,
     2,
     all_canvas,
@@ -271,7 +169,7 @@ _td_register_canvas(
     True,
     None,
 )
-_td_register_canvas(
+tdapp.register_canvas(
     win,
     3,
     hidden_canvas,
@@ -339,5 +237,5 @@ tdui.run()
 # tdui-editor design 49/53: ":-1}}],"handlers":{"mouse_0":{"args":"cv, x, y, button, action"
 # tdui-editor design 50/53: ,"body":"main_label.text = \"mouse 0\""},"mouse_1":{"args":"cv, 
 # tdui-editor design 51/53: x, y, button, action","body":"main_label.text = \"mouse 1\""}},"
-# tdui-editor design 52/53: options":{"embedDesign":true,"keepUnusedHandlers":false},"knownN
-# tdui-editor design 53/53: ames":[]}
+# tdui-editor design 52/53: options":{"embedDesign":true,"keepUnusedHandlers":false,"embedRu
+# tdui-editor design 53/53: ntime":false},"knownNames":[]}

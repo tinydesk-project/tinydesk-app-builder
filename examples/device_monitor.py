@@ -4,114 +4,13 @@ import tdui
 if getattr(tdui, "MAX_CELLS", 2000) < 100:
     raise OSError("Design needs 100 canvas cells; update TinyDesk firmware.")
 
-_TD_PARK = 1000
-
-_TD_PAGES = hasattr(tdui.Canvas, "draw_to")
-
-class _TDNoBatch:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, kind, value, traceback):
-        return False
-
-_td_no_batch = _TDNoBatch()
-
-
-def _td_batch():
-    return tdui.batch() if hasattr(tdui, "batch") else _td_no_batch
-
-
-_td_canvas_groups = {}
-_td_window_groups = {}
-
-
-def _td_make_canvas(win, x, y, w, h, pages):
-    if _TD_PAGES:
-        cv = win.canvas(x, y, w, h, pages=pages)
-    else:
-        cv = win.canvas(x, y, w, h)
-    cv._td_parked = False
-    return cv
-
-
-def _td_alias_canvas(base, win, x, y, w, h):
-    if _TD_PAGES:
-        return base
-    return _td_make_canvas(win, x, y, w, h, 1)
-
-
-def _td_hide_canvas(cv, clear=False):
-    if clear:
-        cv.fill(0, 0, cv.width, cv.height, " ", -1, -1)
-    if not cv._td_parked:
-        cv.move(_TD_PARK, _TD_PARK)
-        cv._td_parked = True
-
-
-def _td_place_canvas(cv, x, y):
-    if cv._td_parked:
-        cv.move(x, y)
-        cv._td_parked = False
-
-
-def _td_select_canvas(cv, page):
-    # _PAGE supports draw and show together: one atomic request, not two.
-    cv.drawing = page
-    cv.showing = page
-    cv._req2(19, page, page, 0, 0, 0, 0, None)
-
-
-def _td_register_canvas(win, group, base, cv, own, page, x, y, paint, visible, mouse):
-    record = _td_canvas_groups.get(group)
-    if record is None:
-        record = [base, x, y, []]
-        _td_canvas_groups[group] = record
-        _td_window_groups.setdefault(win, []).append(record)
-    record[3].append((cv, own, page, paint, visible, mouse))
-    if _TD_PAGES:
-        cv.draw_to(page)
-        paint()
-
-
-def _td_show_canvases(win, name):
-    for base, x, y, entries in _td_window_groups.get(win, ()):
-        active = None
-        for entry in entries:
-            cv, own, page, paint, visible, mouse = entry
-            if not _TD_PAGES:
-                _td_hide_canvas(cv, True)
-            if visible and (own is None or own == name):
-                active = entry
-        if active is None:
-            if _TD_PAGES:
-                _td_hide_canvas(base)
-            continue
-        cv, own, page, paint, visible, mouse = active
-        _td_place_canvas(cv, x, y)
-        if _TD_PAGES:
-            if len(entries) > 1:
-                _td_select_canvas(cv, page)
-        else:
-            paint()
-        cv.on_mouse = mouse
-
-
-def canvas_page(cv, name):
-    # Use the returned canvas: aliases share an object only on newer firmware.
-    for base, x, y, entries in _td_canvas_groups.values():
-        found = False
-        for entry in entries:
-            if entry[0] is cv:
-                found = True
-                break
-        if found:
-            for target, own, page, paint, visible, mouse in entries:
-                if own is None or own == name:
-                    if _TD_PAGES:
-                        target.draw_to(page)
-                    return target
-    raise ValueError("unknown canvas page")
+try:
+    import tdapp
+except ImportError:
+    raise OSError("Update TinyDesk firmware: this app uses the tdapp library.")
+if tdapp.VERSION < (1, 0):
+    raise OSError("Update TinyDesk firmware for tdapp 1.0.")
+canvas_page = tdapp.canvas_page
 
 # --- tdui-editor layout begin ---
 win = tdui.Window("Device monitor", 62, 19, x=None, y=None, resizable=True)
@@ -128,7 +27,7 @@ memory.color(78, -1)
 refresh = win.button(3, 13, "Refresh")
 close_button = win.button(17, 13, "Close")
 devices = win.list(33, 4, 25, 5, items=["workbench-01", "sensor-node-02", "display-node-03"])
-status = _td_make_canvas(win, 33, 11, 25, 4, 1)
+status = tdapp.make_canvas(win, 33, 11, 25, 4, 1)
 footnote = win.label(3, 17, "Ready. Waiting for input.", width=50)
 footnote.color(244, -1)
 
@@ -138,7 +37,7 @@ footnote.color(244, -1)
 
 
 def _td_paint_status():
-    with _td_batch():
+    with tdapp.batch():
         status.fill(0, 0, 25, 4, " ", -1, -1)
         status.fill(0, 0, 25, 4, " ", 115, 234)
         status.put(2, 1, "● SYSTEM ONLINE", 115, 234)
@@ -148,7 +47,7 @@ _td_page_names_win = ["Main"]
 
 
 def _td_show_win(name):
-    with _td_batch():
+    with tdapp.batch():
         _td_apply_win(name)
 
 
@@ -166,7 +65,7 @@ def _td_apply_win(name):
     close_button.visible = name == "Main"
     devices.visible = name == "Main"
     footnote.visible = name == "Main"
-    _td_show_canvases(win, name)
+    tdapp.show_canvases(win, name)
 
 
 def show_page(name, window=None):
@@ -191,7 +90,7 @@ def close_app(button):
 # Wire callbacks after their definitions.
 refresh.on_click = refresh_device
 close_button.on_click = close_app
-_td_register_canvas(win, 0, status, status, "Main", 0, 33, 11, _td_paint_status, True, None)
+tdapp.register_canvas(win, 0, status, status, "Main", 0, 33, 11, _td_paint_status, True, None)
 _td_show_win("Main")
 
 tdui.run()
@@ -262,4 +161,4 @@ tdui.run()
 # tdui-editor design 64/67: abel.text = \"Memory usage   %d%%\" % memory.value\nfootnote.tex
 # tdui-editor design 65/67: t = \"Updated successfully.\""},"close_app":{"args":"button","bo
 # tdui-editor design 66/67: dy":"win.close()"}},"options":{"embedDesign":true,"keepUnusedHan
-# tdui-editor design 67/67: dlers":false},"knownNames":[]}
+# tdui-editor design 67/67: dlers":false,"embedRuntime":false},"knownNames":[]}

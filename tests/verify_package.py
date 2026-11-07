@@ -7,7 +7,7 @@ import tempfile
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
 from app_package import build,inspect,deployment
-runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
+runtime=__import__('runtime_path').tdsim()
 compiler=root.parent/'tinydesk/build-check-20261103/compiler/mpy_cross/mpy-cross.exe'
 project={'version':1,'name':'package_test','provenance':{'lastEditedWith':'0.3.0'},'application':{'version':'1.0.0'}}
 source="""import helper

@@ -4,122 +4,20 @@ import tdui
 if getattr(tdui, "MAX_CELLS", 2000) < 120:
     raise OSError("Design needs 120 canvas cells; update TinyDesk firmware.")
 
-_TD_PARK = 1000
-
-_TD_PAGES = hasattr(tdui.Canvas, "draw_to")
-
-class _TDNoBatch:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, kind, value, traceback):
-        return False
-
-_td_no_batch = _TDNoBatch()
-_td_preparing = False
-
-
-def _td_batch():
-    return tdui.batch() if not _td_preparing and hasattr(tdui, "batch") else _td_no_batch
-
-
-_td_canvas_groups = {}
-_td_window_groups = {}
-
-
-def _td_make_canvas(win, x, y, w, h, pages):
-    if _TD_PAGES:
-        cv = win.canvas(x, y, w, h, pages=pages)
-    else:
-        cv = win.canvas(x, y, w, h)
-    cv._td_parked = False
-    return cv
-
-
-def _td_alias_canvas(base, win, x, y, w, h):
-    if _TD_PAGES:
-        return base
-    return _td_make_canvas(win, x, y, w, h, 1)
-
-
-def _td_hide_canvas(cv, clear=False):
-    if clear:
-        cv.fill(0, 0, cv.width, cv.height, " ", -1, -1)
-    if not cv._td_parked:
-        cv.move(_TD_PARK, _TD_PARK)
-        cv._td_parked = True
-
-
-def _td_place_canvas(cv, x, y):
-    if cv._td_parked:
-        cv.move(x, y)
-        cv._td_parked = False
-
-
-def _td_select_canvas(cv, page):
-    # _PAGE supports draw and show together: one atomic request, not two.
-    cv.drawing = page
-    cv.showing = page
-    cv._req2(19, page, page, 0, 0, 0, 0, None)
-
-
-def _td_register_canvas(win, group, base, cv, own, page, x, y, paint, visible, mouse):
-    record = _td_canvas_groups.get(group)
-    if record is None:
-        record = [base, x, y, []]
-        _td_canvas_groups[group] = record
-        _td_window_groups.setdefault(win, []).append(record)
-    record[3].append((cv, own, page, paint, visible, mouse))
-    if _TD_PAGES:
-        cv.draw_to(page)
-        paint()
-
-
-def _td_show_canvases(win, name):
-    for base, x, y, entries in _td_window_groups.get(win, ()):
-        active = None
-        for entry in entries:
-            cv, own, page, paint, visible, mouse = entry
-            if not _TD_PAGES:
-                _td_hide_canvas(cv, True)
-            if visible and (own is None or own == name):
-                active = entry
-        if active is None:
-            if _TD_PAGES:
-                _td_hide_canvas(base)
-            continue
-        cv, own, page, paint, visible, mouse = active
-        _td_place_canvas(cv, x, y)
-        if _TD_PAGES:
-            if len(entries) > 1:
-                _td_select_canvas(cv, page)
-        else:
-            paint()
-        cv.on_mouse = mouse
-
-
-def canvas_page(cv, name):
-    # Use the returned canvas: aliases share an object only on newer firmware.
-    for base, x, y, entries in _td_canvas_groups.values():
-        found = False
-        for entry in entries:
-            if entry[0] is cv:
-                found = True
-                break
-        if found:
-            for target, own, page, paint, visible, mouse in entries:
-                if own is None or own == name:
-                    if _TD_PAGES:
-                        target.draw_to(page)
-                    return target
-    raise ValueError("unknown canvas page")
+try:
+    import tdapp
+except ImportError:
+    raise OSError("Update TinyDesk firmware: this app uses the tdapp library.")
+if tdapp.VERSION < (1, 0):
+    raise OSError("Update TinyDesk firmware for tdapp 1.0.")
+canvas_page = tdapp.canvas_page
 
 # --- tdui-editor layout begin ---
 win = tdui.Window("Device monitor", 62, 19, x=None, y=None, resizable=True)
 main_label = win.label(2, 1, "MAIN", width=20)
-main_canvas = _td_make_canvas(win, 2, 3, 20, 3, 2)
+main_canvas = tdapp.make_canvas(win, 2, 3, 20, 3, 2)
 settings_label = win.label(2, 1, "SETTINGS", width=20)
-settings_canvas = _td_alias_canvas(main_canvas, win, 2, 3, 20, 3)
+settings_canvas = tdapp.alias_canvas(main_canvas, win, 2, 3, 20, 3)
 next_page = win.button(2, 16, "Settings")
 _td_tab_win_0 = win.button(0, 18, "Main")
 _td_tab_win_1 = win.button(9, 18, "Settings")
@@ -130,14 +28,14 @@ _td_tab_win_1 = win.button(9, 18, "Settings")
 
 
 def _td_paint_main_canvas():
-    with _td_batch():
+    with tdapp.batch():
         main_canvas.fill(0, 0, 20, 3, " ", -1, 234)
         main_canvas.fill(0, 0, 20, 3, ".", 115, 234)
         main_canvas.put(1, 1, "MAIN", 115, 234)
 
 
 def _td_paint_settings_canvas():
-    with _td_batch():
+    with tdapp.batch():
         settings_canvas.fill(0, 0, 20, 3, " ", -1, 234)
         settings_canvas.fill(0, 0, 20, 3, ".", 214, 234)
         settings_canvas.put(1, 1, "SETTINGS", 214, 234)
@@ -146,7 +44,7 @@ _td_page_names_win = ["Main", "Settings"]
 
 
 def _td_show_win(name):
-    with _td_batch():
+    with tdapp.batch():
         _td_apply_win(name)
 
 
@@ -156,7 +54,7 @@ def _td_apply_win(name):
     main_label.visible = name == "Main"
     settings_label.visible = name == "Settings"
     next_page.visible = True
-    _td_show_canvases(win, name)
+    tdapp.show_canvases(win, name)
 
 
 def show_page(name, window=None):
@@ -184,7 +82,7 @@ def _td_go__td_tab_win_1(button):
 next_page.on_click = _td_go_next_page
 _td_tab_win_0.on_click = _td_go__td_tab_win_0
 _td_tab_win_1.on_click = _td_go__td_tab_win_1
-_td_register_canvas(
+tdapp.register_canvas(
     win,
     0,
     main_canvas,
@@ -197,7 +95,7 @@ _td_register_canvas(
     True,
     None,
 )
-_td_register_canvas(
+tdapp.register_canvas(
     win,
     0,
     main_canvas,
@@ -214,36 +112,37 @@ _td_show_win("Main")
 
 tdui.run()
 
-# tdui-editor design 1/33: {"version":1,"name":"device_monitor","screen":{"w":80,"h":25},"b
-# tdui-editor design 2/33: oard":2000,"theme":"dark","windows":[{"id":"window_1","name":"wi
-# tdui-editor design 3/33: n","title":"Device monitor","w":62,"h":19,"x":null,"y":null,"res
-# tdui-editor design 4/33: izable":true,"fullscreen":false,"events":{},"timers":[],"widgets
-# tdui-editor design 5/33: ":[{"id":"main_label","type":"label","name":"main_label","x":2,"
-# tdui-editor design 6/33: y":1,"w":20,"h":4,"text":"MAIN","checked":false,"secret":false,"
-# tdui-editor design 7/33: value":65,"fg":-1,"bg":-1,"visible":true,"events":{},"page":"mai
-# tdui-editor design 8/33: n","goToPage":null,"items":["First item","Second item","Third it
-# tdui-editor design 9/33: em"],"paint":[]},{"id":"main_canvas","type":"canvas","name":"mai
-# tdui-editor design 10/33: n_canvas","x":2,"y":3,"w":20,"h":3,"text":"","checked":false,"se
-# tdui-editor design 11/33: cret":false,"value":65,"fg":-1,"bg":234,"visible":true,"events":
-# tdui-editor design 12/33: {},"page":"main","goToPage":null,"items":["First item","Second i
-# tdui-editor design 13/33: tem","Third item"],"paint":[{"op":"fill","x":0,"y":0,"w":20,"h":
-# tdui-editor design 14/33: 3,"ch":".","fg":115,"bg":234},{"op":"put","x":1,"y":1,"text":"MA
-# tdui-editor design 15/33: IN","fg":115,"bg":234}]},{"id":"settings_label","type":"label","
-# tdui-editor design 16/33: name":"settings_label","x":2,"y":1,"w":20,"h":4,"text":"SETTINGS
-# tdui-editor design 17/33: ","checked":false,"secret":false,"value":65,"fg":-1,"bg":-1,"vis
-# tdui-editor design 18/33: ible":true,"events":{},"page":"settings","goToPage":null,"items"
-# tdui-editor design 19/33: :["First item","Second item","Third item"],"paint":[]},{"id":"se
-# tdui-editor design 20/33: ttings_canvas","type":"canvas","name":"settings_canvas","x":2,"y
-# tdui-editor design 21/33: ":3,"w":20,"h":3,"text":"","checked":false,"secret":false,"value
-# tdui-editor design 22/33: ":65,"fg":-1,"bg":234,"visible":true,"events":{},"page":"setting
-# tdui-editor design 23/33: s","goToPage":null,"items":["First item","Second item","Third it
-# tdui-editor design 24/33: em"],"paint":[{"op":"fill","x":0,"y":0,"w":20,"h":3,"ch":".","fg
-# tdui-editor design 25/33: ":214,"bg":234},{"op":"put","x":1,"y":1,"text":"SETTINGS","fg":2
-# tdui-editor design 26/33: 14,"bg":234}]},{"id":"next_page","type":"button","name":"next_pa
-# tdui-editor design 27/33: ge","x":2,"y":16,"w":18,"h":4,"text":"Settings","checked":false,
-# tdui-editor design 28/33: "secret":false,"value":65,"fg":-1,"bg":-1,"visible":true,"events
-# tdui-editor design 29/33: ":{},"page":null,"goToPage":"settings","items":["First item","Se
-# tdui-editor design 30/33: cond item","Third item"],"paint":[]}],"pages":[{"id":"main","nam
-# tdui-editor design 31/33: e":"Main"},{"id":"settings","name":"Settings"}],"initialPage":"m
-# tdui-editor design 32/33: ain","tabs":{"enabled":true,"row":-1}}],"handlers":{},"options":
-# tdui-editor design 33/33: {"embedDesign":true,"keepUnusedHandlers":false},"knownNames":[]}
+# tdui-editor design 1/34: {"version":1,"name":"device_monitor","screen":{"w":80,"h":25},"b
+# tdui-editor design 2/34: oard":2000,"theme":"dark","windows":[{"id":"window_1","name":"wi
+# tdui-editor design 3/34: n","title":"Device monitor","w":62,"h":19,"x":null,"y":null,"res
+# tdui-editor design 4/34: izable":true,"fullscreen":false,"events":{},"timers":[],"widgets
+# tdui-editor design 5/34: ":[{"id":"main_label","type":"label","name":"main_label","x":2,"
+# tdui-editor design 6/34: y":1,"w":20,"h":4,"text":"MAIN","checked":false,"secret":false,"
+# tdui-editor design 7/34: value":65,"fg":-1,"bg":-1,"visible":true,"events":{},"page":"mai
+# tdui-editor design 8/34: n","goToPage":null,"items":["First item","Second item","Third it
+# tdui-editor design 9/34: em"],"paint":[]},{"id":"main_canvas","type":"canvas","name":"mai
+# tdui-editor design 10/34: n_canvas","x":2,"y":3,"w":20,"h":3,"text":"","checked":false,"se
+# tdui-editor design 11/34: cret":false,"value":65,"fg":-1,"bg":234,"visible":true,"events":
+# tdui-editor design 12/34: {},"page":"main","goToPage":null,"items":["First item","Second i
+# tdui-editor design 13/34: tem","Third item"],"paint":[{"op":"fill","x":0,"y":0,"w":20,"h":
+# tdui-editor design 14/34: 3,"ch":".","fg":115,"bg":234},{"op":"put","x":1,"y":1,"text":"MA
+# tdui-editor design 15/34: IN","fg":115,"bg":234}]},{"id":"settings_label","type":"label","
+# tdui-editor design 16/34: name":"settings_label","x":2,"y":1,"w":20,"h":4,"text":"SETTINGS
+# tdui-editor design 17/34: ","checked":false,"secret":false,"value":65,"fg":-1,"bg":-1,"vis
+# tdui-editor design 18/34: ible":true,"events":{},"page":"settings","goToPage":null,"items"
+# tdui-editor design 19/34: :["First item","Second item","Third item"],"paint":[]},{"id":"se
+# tdui-editor design 20/34: ttings_canvas","type":"canvas","name":"settings_canvas","x":2,"y
+# tdui-editor design 21/34: ":3,"w":20,"h":3,"text":"","checked":false,"secret":false,"value
+# tdui-editor design 22/34: ":65,"fg":-1,"bg":234,"visible":true,"events":{},"page":"setting
+# tdui-editor design 23/34: s","goToPage":null,"items":["First item","Second item","Third it
+# tdui-editor design 24/34: em"],"paint":[{"op":"fill","x":0,"y":0,"w":20,"h":3,"ch":".","fg
+# tdui-editor design 25/34: ":214,"bg":234},{"op":"put","x":1,"y":1,"text":"SETTINGS","fg":2
+# tdui-editor design 26/34: 14,"bg":234}]},{"id":"next_page","type":"button","name":"next_pa
+# tdui-editor design 27/34: ge","x":2,"y":16,"w":18,"h":4,"text":"Settings","checked":false,
+# tdui-editor design 28/34: "secret":false,"value":65,"fg":-1,"bg":-1,"visible":true,"events
+# tdui-editor design 29/34: ":{},"page":null,"goToPage":"settings","items":["First item","Se
+# tdui-editor design 30/34: cond item","Third item"],"paint":[]}],"pages":[{"id":"main","nam
+# tdui-editor design 31/34: e":"Main"},{"id":"settings","name":"Settings"}],"initialPage":"m
+# tdui-editor design 32/34: ain","tabs":{"enabled":true,"row":-1}}],"handlers":{},"options":
+# tdui-editor design 33/34: {"embedDesign":true,"keepUnusedHandlers":false,"embedRuntime":fa
+# tdui-editor design 34/34: lse},"knownNames":[]}

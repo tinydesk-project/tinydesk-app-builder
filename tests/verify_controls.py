@@ -5,7 +5,7 @@ import sys
 import verify_export as base
 board=base.Board(32000)
 api_spec=importlib.util.spec_from_file_location('tdui',base.SOURCE)
-api=importlib.util.module_from_spec(api_spec);sys.modules['tdui']=api;api_spec.loader.exec_module(api);api.run=lambda:None
+api=importlib.util.module_from_spec(api_spec);sys.modules['tdui']=api;api_spec.loader.exec_module(api);api.run=lambda:None;base.install_tdapp()
 scope={};source=(base.ROOT/'examples/instrument_panel.py').read_text(encoding='utf-8');exec(compile(source,'instrument_panel.py','exec'),scope)
 cv=scope['panel'];slider=scope['level_slider']
 cv._event(api._EV_MOUSE,30,10,0,0,None)

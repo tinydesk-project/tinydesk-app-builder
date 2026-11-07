@@ -10,7 +10,7 @@ sys.path.insert(0,str(root/'tools'))
 from app_package import build, inspect, compile_source, mpy_arch
 from builder_helper import Simulation
 compiler=max((root.parent/'tinydesk').glob('build*/compiler/mpy_cross/mpy-cross.exe'),key=lambda p:p.stat().st_mtime)
-runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
+runtime=__import__('runtime_path').tdsim()
 source='def compute(x):\n return x*x+1\nprint(compute(4))\n'
 modules={arch:compile_source(compiler,source,compilation={'mode':'native','arch':arch}) for arch in ('xtensawin','rv32imc')}
 for arch,code in [('xtensawin',10),('rv32imc',11)]:

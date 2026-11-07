@@ -9,7 +9,7 @@ root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
 from builder_helper import Simulation
 from app_package import build,inspect
-runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
+runtime=__import__('runtime_path').tdsim()
 compiler=root.parent/'tinydesk/build-check-20261103/compiler/mpy_cross/mpy-cross.exe'
 generated=json.loads(subprocess.check_output(['node','-e',r'''
 const T=require('./core.js'),C=require('./communications.js'),d=T.initial(),w=d.windows[0];
@@ -22,7 +22,7 @@ w.widgets=[Object.assign(T.widget('label','reading',2,2),{binding:{...C.bindingD
 const cv=T.widget('canvas','controls',2,8);Object.assign(cv,{w:30,h:8});
 cv.paint=[{...T.Pixels.defaults.slider,op:'slider',name:'level',x:1,y:1,w:20,h:3,binding:{...C.bindingDefaults,direction:'readwrite',address:2,max:100,event:'change'}}];w.widgets.push(cv);
 if(T.validate(d).errors.length)throw Error(T.validate(d).errors.join('\n'));
-process.stdout.write(JSON.stringify({project:d,source:T.generate(d,{bundle:true,simulation:true}),hardware:T.generate(d,{bundle:true})}));
+process.stdout.write(JSON.stringify({project:d,source:T.generate(d,{bundle:true,simulation:true,embedRuntime:true}),hardware:T.generate(d,{bundle:true,embedRuntime:true})}));
 '''],cwd=root,text=True,encoding='utf-8'))
 
 probe='''

@@ -10,6 +10,6 @@ for(const p of shapes){const old=p.gradient;p.gradient={...old,rgb1:[-1,5,6]};as
 const controls=T.parse(fs.readFileSync(__dirname+'/../examples/instrument_panel.json','utf8'));
 for(const w of controls.windows)for(const cv of w.widgets)for(const p of cv.paint||[])if(['slider','gauge'].includes(p.op)){p.radius=3;p.gradient={rgb1:[32,128,240],rgb2:[0,32,96],across:true};}
 assert.deepEqual(T.validate(controls).errors,[]);
-const rounded=T.generate(controls);assert(rounded.includes('"radius": 3'));assert(rounded.includes('bg, radius=radius, gradient=gradient'));assert(rounded.includes('track, radius=radius, gradient=gradient'));
+const rounded=T.generate(controls,{embedRuntime:true});assert(rounded.includes('"radius": 3'));assert(rounded.includes('bg, radius=radius, gradient=gradient'));assert(rounded.includes('track, radius=radius, gradient=gradient'));
 assert.deepEqual(T.parse(rounded),controls);
 console.log('PASS: gradient shape validation, firmware capability check and lossless export/import.');

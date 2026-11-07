@@ -12,6 +12,7 @@ spec = importlib.util.spec_from_file_location('tdui', base.SOURCE)
 api = importlib.util.module_from_spec(spec)
 sys.modules['tdui'] = api
 spec.loader.exec_module(api)
+base.install_tdapp()
 assert api.render_cache(64) is None, 'Optional cache must tolerate an older native module'
 assert api.render_cache_info() == (0,) * 12
 assert api.scanout_info() == (0,) * 8

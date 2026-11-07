@@ -23,6 +23,8 @@ VENDOR = ROOT / 'vendor' / 'tinydesk'
 FILES = {
     'tdui_contract.json': 'ports/common/python/tdui_contract.json',
     'tdui.py': 'ports/common/python/modules/tdui.py',
+    'tdapp_contract.json': 'ports/common/python/tdapp_contract.json',
+    'tdapp.py': 'ports/common/python/modules/tdapp.py',
     'pyui.c': 'apps/pyui.c',
     'tdsh_ftp.c': 'third_party/tdsh/ports/esp_idf/components/tdsh/src/tdsh_ftp.c',
 }

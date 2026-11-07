@@ -15,7 +15,7 @@ d.assets=[{name:'display.tdfont',data:Buffer.from(data).toString('base64'),mime:
 assert.deepEqual(T.validate(d).errors,[]);assert.deepEqual(T.parse(JSON.stringify(d)),T.normalize(T.clone(d)));
 assert.equal(R.required(d).get('display.tdfont'),'/root/fonts/display.tdfont');
 assert.equal(R.inventory(d)[0].kind,'font');assert.equal(R.inventory(d)[0].uses.length,2);
-const code=T.generate(d,{bundle:true});assert.equal((code.match(/= tdui.Font.load/g)||[]).length,1);assert(code.includes('_td_package_dir + "display.tdfont"'));assert(code.includes('font=_td_font_0'));assert(!code.includes('"sourceAsset":'));
+const code=T.generate(d,{bundle:true,embedRuntime:true});assert.equal((code.match(/= tdui.Font.load/g)||[]).length,1);assert(code.includes('_td_package_dir + "display.tdfont"'));assert(code.includes('font=_td_font_0'));assert(!code.includes('"sourceAsset":'));
 assert(code.includes('hasattr(tdui, "Font")'));assert(code.includes('self.values[\'font\'] = font'));
 const op=cv.paint[0];op.align='invalid';assert(T.validate(d).errors.some(e=>e.includes('alignment')));
 console.log('PASS: portable font format, malformed files, Unicode fallback, multiline wrapping, resources, named fields, buttons and package-relative export.');

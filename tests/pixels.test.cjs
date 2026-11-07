@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),T=require('../c
 const original=T.parse(fs.readFileSync(__dirname+'/fixtures/pixel_controls.json','utf8'));
 assert.deepEqual(T.validate(original).errors,[]);
 assert.equal(T.usage(original).pixels,64*20*4+32*32); // one shared decoded image
-const code=T.generate(original);
+const code=T.generate(original,{embedRuntime:true});
 for(const op of new Set(original.windows.flatMap(w=>w.widgets.flatMap(o=>o.paint.map(p=>p.op)))))assert(code.includes('.'+op+'('),op);
 assert.equal((code.match(/= tdui.Image.load/g)||[]).length,1);
 assert(code.includes('with _td_batch():'));

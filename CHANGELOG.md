@@ -6,7 +6,32 @@ change between minor versions, but the apps it made keep running (see
 [COMPATIBILITY.md](COMPATIBILITY.md)). Each release's test record is in
 [VALIDATION.md](VALIDATION.md).
 
-## 0.12.0 (unreleased)
+## 0.13.0 (unreleased)
+
+* **Smoother, dependable resizing:** windows resize from every edge and
+  corner, with half a cell of slack around the frame; labels, text boxes,
+  progress bars, lists and canvases get resize handles (with a live size
+  badge). A press on a window's frame no longer starts a selection
+  rectangle instead (why resizing sometimes did nothing). While dragging,
+  only the preview is redrawn, once a frame; the Python, checks and
+  inspector catch up on release. Panel splitters lay out once a frame.
+
+* **Apps use TinyDesk's app library:** exported apps `import tdapp` (frozen
+  into TinyDesk 0.3 and later) for their canvas pages, gauges, sliders,
+  panels, drawing batches and Modbus / UART links, instead of carrying a
+  copy of that code. An app now holds only its layout, artwork, pages and
+  handlers: the examples shrink to 1.5-9 KB (`register_panel` from 35 KB to
+  under 5 KB). A library export names the `tdapp` version it needs and
+  stops with "Update TinyDesk firmware" on older boards. **Export options →
+  Copy the app runtime into the file** keeps the old self-contained export
+  for firmware before 0.3. `tools/sync_tinydesk.py` now pins `tdapp.py` and
+  `tdapp_contract.json` too, and a test checks every `tdapp` name an export
+  uses against that contract.
+* **Tests and helper find the right simulator:** `TDSIM`, else the newest
+  `tdsim` of a `tinydesk-ux` or `tinydesk` checkout beside App Builder
+  (`tests/runtime_path.py`, `tools/builder_helper.py`).
+
+## 0.12.0
 
 * **QR code element:** GUI elements → **QR code** adds a QR code (byte
   mode, level L, versions 1 to 5, up to 106 bytes; default

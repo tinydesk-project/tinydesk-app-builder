@@ -87,14 +87,14 @@ canvas.onpointermove=e=>{
  if(drag.resize){
   const next=TDGeometry.resize(start,b,drag.resize,p.x-drag.start.x,p.y-drag.start.y,drag.canvas.w,drag.canvas.h);
   if(!drag.recorded&&JSON.stringify(next)===JSON.stringify(start))return;
-  if(!drag.recorded){snapshot();drag.recorded=true;}drag.canvas.paint[drag.index]=next;update();refreshElementGeometry();return;
+  if(!drag.recorded){snapshot();drag.recorded=true;}drag.canvas.paint[drag.index]=next;drawSoon();refreshElementGeometry();return;
  }
  const dx=Math.max(-b.x,Math.min(drag.canvas.w-b.x-b.w,Math.round((p.x-drag.start.x)*units)/units)),dy=Math.max(-b.y,Math.min(drag.canvas.h-b.y-b.h,Math.round((p.y-drag.start.y)*units)/units));
  if(!drag.recorded&&(!dx&&!dy))return;
  if(!drag.recorded){snapshot();drag.recorded=true;}
  const target=drag.canvas.paint[drag.index];target.x=start.x+Math.round(dx*units);target.y=start.y+Math.round(dy*units);
  if(start.op==='line'){target.x2=start.x2+Math.round(dx*units);target.y2=start.y2+Math.round(dy*units);}
- update();refreshElementGeometry();
+ drawSoon();refreshElementGeometry();
 };
 canvas.onpointerup=e=>{
  if(!drag?.drawing)return elementUpBase(e);

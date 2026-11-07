@@ -16,7 +16,7 @@ d.handlers.final_probe={args:'',body:"with open('/root/final.txt','w') as f:\\n 
 fs.writeFileSync(process.argv[1],JSON.stringify(d));'''
     subprocess.run(['node','-e',script,str(project)],cwd=root,check=True)
     subprocess.run(['node',str(root/'tools/export_project.cjs'),str(project),str(source)],check=True)
-    sim=Simulation(max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime))
+    sim=Simulation(__import__('runtime_path').tdsim())
     try:
         result=sim.start({'source':source.read_text(encoding='utf-8'),'cols':80,'rows':25})
         sim.exchange(['wait=1200'])
@@ -33,7 +33,7 @@ from pathlib import Path
 import subprocess, tempfile
 
 root=Path(__file__).resolve().parents[1]
-runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
+runtime=__import__('runtime_path').tdsim()
 source=subprocess.check_output(['node','-e',"const T=require('./core.js'),d=T.initial();d.startup={mode:'custom',page:d.windows[0].initialPage,durationMs:0,image:''};process.stdout.write(T.generate(d,{embedDesign:false}));"],cwd=root).decode()
 # Slow storage/initialization happens after the short create/minimize batch.
 source=source.replace('# --- tdui-editor layout end ---', 'import time\ntime.sleep_ms(5500)\n# --- tdui-editor layout end ---')

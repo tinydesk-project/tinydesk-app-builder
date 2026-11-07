@@ -11,7 +11,7 @@ assert.equal(A.resourceFor([{name:'existing.ppm',data:A.clearResource.data}],A.c
 const panel=A.smoothPanel({op:'rect',name:'box',x:3,y:3,w:20,h:9,color:25,radius:6});assert.deepEqual([panel.x,panel.y,panel.w,panel.h],[1,1,11,5]);assert.equal(panel.asset.dither,false);assert.equal(panel.border,16);assert.deepEqual(panel.src,[0,0,64,64]);
 const labelled={...panel,text:'Title'};assert.deepEqual(A.textBackground(A.textBackground(labelled,true),false),labelled);assert(!A.textBackground(labelled,true).edgeSlices);
 const d=TD.initial();d.board=32000;d.windows[0].fullscreen=true;const cv=TD.widget('canvas','cv',0,0);Object.assign(cv,{w:40,h:20});cv.paint=[clear,panel];d.windows[0].widgets.push(cv);assert.equal(TD.validate(d).errors.length,0);assert(TD.generate(d).includes('td_clear_text.ppm'));
-const code=TD.generate(d,{embedDesign:false});assert(!code.includes('opaquePicture'));assert(!code.includes('"bg": -2'));assert(code.includes('elif self.method == \'panel\''));
+const code=TD.generate(d,{embedDesign:false,embedRuntime:true});assert(!code.includes('opaquePicture'));assert(!code.includes('"bg": -2'));assert(code.includes('elif self.method == \'panel\''));
 const full=TD.clone(d);full.windows[0].widgets=[cv];full.windows[0].widgets[0].paint=Array.from({length:15},(_,i)=>({...panel,name:'panel_'+i}));assert(TD.validate(full).errors.some(s=>s.includes('Visible native picture budget')));
 full.board=2000;full.windows[0].widgets[0].paint.length=6;assert(TD.validate(full).errors.some(s=>s.includes('Native picture budget')));
 console.log('PASS: native picture text transparency/restoration, embedded clear tile, smooth panel geometry, skin keys and export.');

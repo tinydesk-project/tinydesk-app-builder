@@ -9,7 +9,7 @@ import time
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
 from builder_helper import Simulation
-sim=Simulation(max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime))
+sim=Simulation(__import__('runtime_path').tdsim())
 source=(root/'examples/instrument_panel.py').read_text(encoding='utf-8')
 probe='''
 def probe_value():

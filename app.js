@@ -86,7 +86,8 @@ function color(n){if(n<16)return ansi[Math.max(0,n)];if(n<232){let v=n-16,a=[0,9
 const themes={dark:{deskfg:24,deskbg:234,fg:252,bg:236,frame:75,title:25,titlefg:231,inactive:238,button:239,input:233,inputfg:252,focus:31,select:24,accent:75,dim:244},classic:{deskfg:3,deskbg:4,fg:0,bg:7,frame:15,title:6,titlefg:15,inactive:8,button:2,input:1,inputfg:15,focus:10,select:6,accent:1,dim:8}};
 const canvas=$('#screen'),ctx=canvas.getContext('2d');let layout=[];
 function frame(w){return TD.windowFrame(w,design);}
-function draw(){const W=design.screen.w,H=design.screen.h;if(!Number.isInteger(W)||!Number.isInteger(H)||W<1||H<1||W>300||H>150)return;canvas.width=W*10;canvas.height=H*20;const t=themes[design.theme];ctx.font='15px Consolas, "Courier New", monospace';ctx.textBaseline='middle';ctx.textAlign='center';function cell(x,y,ch,fg,bg){
+const RESIZE_W=['label','textbox','progress','list','canvas'],RESIZE_H=['list','canvas'];
+function draw(){const W=design.screen.w,H=design.screen.h;if(!Number.isInteger(W)||!Number.isInteger(H)||W<1||H<1||W>300||H>150)return;if(canvas.width!==W*10)canvas.width=W*10;if(canvas.height!==H*20)canvas.height=H*20;ctx.setTransform(1,0,0,1,0,0);const t=themes[design.theme];ctx.font='15px Consolas, "Courier New", monospace';ctx.textBaseline='middle';ctx.textAlign='center';function cell(x,y,ch,fg,bg){
     const px=x*10,py=y*20;
     if(bg!==-2){ctx.fillStyle=color(bg);ctx.fillRect(px,py,10,20);}
     if(ch===' ')return;
@@ -109,15 +110,31 @@ layout.push({win:w,obj:w,r:{x:f.x,y:f.y,w:f.w,h:f.h},f});ctx.save();ctx.beginPat
 ctx.restore();}
 if(!design.windows.some(w=>w.fullscreen)){fill(0,H-1,W,1,' ',t.fg,t.input);text(0,H-1,' ▦ Start │ '+active.title, W-8,t.fg,t.input);text(W-7,H-1,'12:00',5,t.fg,t.input);}
 if(showGrid){ctx.strokeStyle='#c4ffe308';ctx.lineWidth=.5;ctx.beginPath();for(let x=0;x<=W;x++){ctx.moveTo(x*10,0);ctx.lineTo(x*10,H*20);}for(let y=0;y<=H;y++){ctx.moveTo(0,y*20);ctx.lineTo(W*10,y*20);}ctx.stroke();}
-const sel=layout.find(l=>l.obj.id===selected);if(sel&&sel.obj!==sel.win){const r=sel.r;ctx.strokeStyle='#79d8a9';ctx.lineWidth=1.5;ctx.setLineDash(sel.obj.visible?[]:[4,3]);ctx.strokeRect(r.x*10+.75,r.y*20+.75,r.w*10-1.5,r.h*20-1.5);ctx.setLineDash([]);ctx.fillStyle='#b4edce';for(const [x,y] of [[r.x,r.y],[r.x+r.w,r.y],[r.x,r.y+r.h],[r.x+r.w,r.y+r.h]])ctx.fillRect(x*10-2,y*20-2,4,4);$('#selectionInfo').textContent=sel.obj.name+' · '+r.w+' × '+r.h+' · ('+sel.obj.x+', '+sel.obj.y+')';}else $('#selectionInfo').textContent=active.name+' · '+active.w+' × '+active.h+' client';if(drag?.window&&drag.window.mode!=='move'){const f=frame(active),x=Math.max(0,Math.min(canvas.width-110,(f.x+f.w)*10+5)),y=Math.max(0,Math.min(canvas.height-22,(f.y+f.h)*20+3));ctx.fillStyle='#173e2b';ctx.fillRect(x,y,110,22);ctx.font='12px Consolas,monospace';ctx.fillStyle='#d8ffe6';ctx.textAlign='left';ctx.fillText(active.w+' x '+active.h,x+7,y+11);}fit();}
+const sel=layout.find(l=>l.obj.id===selected);if(sel&&sel.obj!==sel.win){const r=sel.r;ctx.strokeStyle='#79d8a9';ctx.lineWidth=1.5;ctx.setLineDash(sel.obj.visible?[]:[4,3]);ctx.strokeRect(r.x*10+.75,r.y*20+.75,r.w*10-1.5,r.h*20-1.5);ctx.setLineDash([]);ctx.fillStyle='#b4edce';const rw=RESIZE_W.includes(sel.obj.type),rh=RESIZE_H.includes(sel.obj.type),hs=[[r.x,r.y],[r.x+r.w,r.y],[r.x,r.y+r.h],[r.x+r.w,r.y+r.h]];if(rw)hs.push([r.x,r.y+r.h/2],[r.x+r.w,r.y+r.h/2]);if(rh)hs.push([r.x+r.w/2,r.y],[r.x+r.w/2,r.y+r.h]);for(const [x,y] of hs){const big=rw&&(rh||y===r.y+r.h/2);ctx.fillRect(x*10-(big?3.5:2),y*20-(big?3.5:2),big?7:4,big?7:4);}$('#selectionInfo').textContent=sel.obj.name+' · '+r.w+' × '+r.h+' · ('+sel.obj.x+', '+sel.obj.y+')';}else $('#selectionInfo').textContent=active.name+' · '+active.w+' × '+active.h+' client';if(drag?.resize&&sel){const r=sel.r,x=Math.max(0,Math.min(canvas.width-110,(r.x+r.w)*10+5)),y=Math.max(0,Math.min(canvas.height-22,(r.y+r.h)*20+3));ctx.fillStyle='#173e2b';ctx.fillRect(x,y,110,22);ctx.font='12px Consolas,monospace';ctx.fillStyle='#d8ffe6';ctx.textAlign='left';ctx.fillText(r.w+' x '+r.h,x+7,y+11);}if(drag?.window&&drag.mode!=='move'){const f=frame(active),x=Math.max(0,Math.min(canvas.width-110,(f.x+f.w)*10+5)),y=Math.max(0,Math.min(canvas.height-22,(f.y+f.h)*20+3));ctx.fillStyle='#173e2b';ctx.fillRect(x,y,110,22);ctx.font='12px Consolas,monospace';ctx.fillStyle='#d8ffe6';ctx.textAlign='left';ctx.fillText(active.w+' x '+active.h,x+7,y+11);}fit();}
 function fit(){let scale=Number($('#zoom').value);if(!scale){const stage=$('#stage');scale=Math.min((stage.clientWidth-50)/canvas.width,(stage.clientHeight-90)/canvas.height,1.5);scale=Math.max(.2,scale);}canvas.style.width=canvas.width*scale+'px';canvas.style.height=canvas.height*scale+'px';}
 function point(e,precise=false){const b=canvas.getBoundingClientRect(),x=(e.clientX-b.left)/b.width*design.screen.w,y=(e.clientY-b.top)/b.height*design.screen.h;return {x:precise?x:Math.floor(x),y:precise?y:Math.floor(y)};}
-function windowEdge(p){
- const l=[...layout].reverse().find(l=>l.obj===l.win&&p.x>=l.r.x&&p.y>=l.r.y&&p.x<l.r.x+l.r.w&&p.y<l.r.y+l.r.h);
- if(!l||l.win.fullscreen)return null;
- const east=p.x===l.f.x+l.f.w-1,south=p.y===l.f.y+l.f.h-1;
- const mode=east&&south?'resize-se':east?'resize-e':south?'resize-s':p.y===l.f.y?'move':null;
- return mode?{...l,mode}:null;
+/* What the pointer grabs, from precise (fractional) cell coordinates:
+ * a window's frame on any side or corner (with half a cell of slack
+ * outside it), its title bar to move it, or the selected widget's edges. */
+const GRAB=.6,CURSORS={move:'move',n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize',ne:'nesw-resize',sw:'nesw-resize',nw:'nwse-resize',se:'nwse-resize'};
+function edgeKind(q,r,slack){
+ const inX=q.x>=r.x-slack&&q.x<=r.x+r.w+slack,inY=q.y>=r.y-slack&&q.y<=r.y+r.h+slack;if(!inX||!inY)return '';
+ const n=Math.abs(q.y-r.y)<=slack,s=Math.abs(q.y-(r.y+r.h))<=slack,w=Math.abs(q.x-r.x)<=slack,e=Math.abs(q.x-(r.x+r.w))<=slack;
+ return (n?'n':s?'s':'')+(w?'w':e?'e':'');
+}
+function windowEdge(q){
+ for(const l of [...layout].reverse()){
+  if(l.obj!==l.win||l.win.fullscreen)continue;
+  const f=l.f,kind=edgeKind(q,{x:f.x,y:f.y,w:f.w,h:f.h},GRAB*.5+.25);
+  if(kind&&!(kind==='n'&&q.y>f.y+.3))return {...l,mode:kind};   /* the title bar's lower part moves */
+  if(q.x>=f.x&&q.x<f.x+f.w&&q.y>=f.y&&q.y<f.y+f.h)return Math.floor(q.y)===f.y?{...l,mode:'move'}:null;
+ }
+ return null;
+}
+function widgetEdge(q){
+ const sel=layout.find(l=>l.obj.id===selected);if(!sel||sel.obj===sel.win||!RESIZE_W.includes(sel.obj.type))return null;
+ let kind=edgeKind(q,sel.r,.35);if(!RESIZE_H.includes(sel.obj.type))kind=kind.replace(/[ns]/,'');
+ return kind?{...sel,mode:kind}:null;
 }
 function liveWindowFields(){const {obj}=current();for(const key of ['w','h','x','y']){const input=$('#inspector [data-key="'+key+'"]');if(input)input.value=obj[key]??'';}}
 function hit(p){return [...layout].reverse().find(l=>p.x>=l.r.x&&p.y>=l.r.y&&p.x<l.r.x+l.r.w&&p.y<l.r.y+l.r.h&&(l.obj===l.win||l.obj.visible||l.obj.id===selected));}
@@ -188,41 +205,75 @@ function deletePage(w,id){
 }
 $('#pageTabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;const {win}=current();if(b.dataset.addPage)addPage(win);else if(b.dataset.viewPage){pageViews.set(win.id,b.dataset.viewPage);selected=win.id;paintMode=false;render();}};
 $('#exportOptions').onclick=()=>{
-    openModal('Python export options','<p>.mpy bytecode does not retain design comments. Save JSON to reopen a compiled design.</p>'+field('embedDesign','Embed design for re-import',design.options.embedDesign,'checkbox')+'<p>The design is stored after tdui.run(), in comment lines of at most 100 characters. Without it, use JSON to reopen the design.</p>'+field('keepUnusedHandlers','Keep unused handlers in the file',design.options.keepUnusedHandlers,'checkbox')+field('appVersion','Application version',design.application?.version||'0.1.0')+'<label class="field"><span>Compiled app target</span><select id="compilationTarget"><option value="bytecode">Portable bytecode · recommended</option><option value="xtensawin">Native · ESP32 / ESP32-S3 / CrowPanel</option><option value="rv32imc">Native · ESP32-C6</option></select></label><p>Native export is experimental, needs root and executable internal RAM, and runs only on the selected CPU. Drawing already runs in C; native code may help computation but is not a guaranteed GUI speedup. Browser simulation runs the portable source. Save JSON and source for recompilation.</p>'+field('modules','Application modules · comma separated',(design.modules||[]).join(', '))+'<p>Unused handlers stay in the JSON design. By default, only handlers used by events, timers, or other used handlers are exported.</p><div class="modal-actions"><button id="saveExportOptions" class="primary">Apply options</button></div>');
+    openModal('Python export options','<p>.mpy bytecode does not retain design comments. Save JSON to reopen a compiled design.</p>'+field('embedDesign','Embed design for re-import',design.options.embedDesign,'checkbox')+'<p>The design is stored after tdui.run(), in comment lines of at most 100 characters. Without it, use JSON to reopen the design.</p>'+field('keepUnusedHandlers','Keep unused handlers in the file',design.options.keepUnusedHandlers,'checkbox')+field('embedRuntime','Copy the app runtime into the file (for TinyDesk before 0.3)',design.options.embedRuntime,'checkbox')+'<p>Off (recommended): the app imports the <b>tdapp</b> library built into TinyDesk, so it holds only its own layout and logic. On: it carries its own copy and also runs on older firmware.</p>'+field('appVersion','Application version',design.application?.version||'0.1.0')+'<label class="field"><span>Compiled app target</span><select id="compilationTarget"><option value="bytecode">Portable bytecode · recommended</option><option value="xtensawin">Native · ESP32 / ESP32-S3 / CrowPanel</option><option value="rv32imc">Native · ESP32-C6</option></select></label><p>Native export is experimental, needs root and executable internal RAM, and runs only on the selected CPU. Drawing already runs in C; native code may help computation but is not a guaranteed GUI speedup. Browser simulation runs the portable source. Save JSON and source for recompilation.</p>'+field('modules','Application modules · comma separated',(design.modules||[]).join(', '))+'<p>Unused handlers stay in the JSON design. By default, only handlers used by events, timers, or other used handlers are exported.</p><div class="modal-actions"><button id="saveExportOptions" class="primary">Apply options</button></div>');
     $('#compilationTarget').value=design.compilation?.mode==='native'?design.compilation.arch:'bytecode';
     $('#modalBody').insertAdjacentHTML('afterbegin','<label>Native picture colors<select id="pictureColorMode"><option value="rgb565">RGB565 · preserve colors (PSRAM)</option><option value="palette">Terminal 256-color palette</option></select></label><p>RGB565 needs updated PSRAM firmware. Small targets retain palette rendering.</p>');
     $('#pictureColorMode').value=design.colorMode||'palette';
     $('#pictureColorMode').closest('label').insertAdjacentHTML('afterend','<label>RAM artwork cache<select id="renderCache"><option value="auto">Automatic · recommended</option><option value="0">Off</option><option value="64">64 KiB</option><option value="128">128 KiB</option></select></label><p>PSRAM RGB apps reuse lossless artwork and warm hidden pages while idle. Capacity is bounded, with a small index allocation; low-memory devices continue without the cache. Changes to elements invalidate their cached appearance. Older firmware keeps its existing rendering.</p>');
     $('#renderCache').value=String(design.renderCache??'auto');
-    $('#saveExportOptions').onclick=()=>{const modules=$('[data-key="modules"]').value.split(',').map(s=>s.trim()).filter(Boolean);if(modules.some(n=>!TD.identifier(n)))return toast('Use Python module names separated by commas.');snapshot();TDVersion.stamp(design);design.application.version=$('[data-key="appVersion"]').value;design.modules=modules;design.colorMode=$('#pictureColorMode').value;const cache=$('#renderCache').value;design.renderCache=cache==='auto'?'auto':Number(cache);const target=$('#compilationTarget').value;design.compilation=target==='bytecode'?{mode:'bytecode'}:{mode:'native',arch:target};design.options={embedDesign:$('[data-key="embedDesign"]').checked,keepUnusedHandlers:$('[data-key="keepUnusedHandlers"]').checked};$('#modal').close();render();};
+    $('#saveExportOptions').onclick=()=>{const modules=$('[data-key="modules"]').value.split(',').map(s=>s.trim()).filter(Boolean);if(modules.some(n=>!TD.identifier(n)))return toast('Use Python module names separated by commas.');snapshot();TDVersion.stamp(design);design.application.version=$('[data-key="appVersion"]').value;design.modules=modules;design.colorMode=$('#pictureColorMode').value;const cache=$('#renderCache').value;design.renderCache=cache==='auto'?'auto':Number(cache);const target=$('#compilationTarget').value;design.compilation=target==='bytecode'?{mode:'bytecode'}:{mode:'native',arch:target};design.options={embedDesign:$('[data-key="embedDesign"]').checked,keepUnusedHandlers:$('[data-key="keepUnusedHandlers"]').checked,embedRuntime:$('[data-key="embedRuntime"]').checked};$('#modal').close();render();};
 };
 $('#palette').innerHTML=TD.TYPES.map(t=>'<button class="component" draggable="true" data-type="'+t+'"><span class="glyph">'+glyphs[t]+'</span>'+t[0].toUpperCase()+t.slice(1)+'</button>').join('');
 $('#palette').onclick=e=>{const el=e.target.closest('[data-type]');if(el)addWidget(el.dataset.type);};$('#palette').ondragstart=e=>{const el=e.target.closest('[data-type]');if(el){e.dataTransfer.setData('text/plain',el.dataset.type);e.dataTransfer.effectAllowed='copy';}};
 canvas.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';};canvas.ondrop=e=>{e.preventDefault();const type=e.dataTransfer.getData('text/plain');if(!TD.TYPES.includes(type))return;const p=point(e),l=hit(p);if(!l)return toast('Drop inside a window.');if(p.x<l.f.cx||p.y<l.f.cy)return toast('Drop inside the window client area.');addWidget(type,{x:p.x-l.f.cx,y:p.y-l.f.cy},l.win);};
+/* While dragging only the preview is redrawn (once a frame); the
+ * generated Python and the design checks catch up on release. */
+let drawFrame=0;function drawSoon(){if(!drawFrame)drawFrame=requestAnimationFrame(()=>{drawFrame=0;draw();});}
+function record(){if(!drag.recorded){snapshot();drag.recorded=true;}}
+function windowDrag(q){
+ const d=drag,w=d.win,dx=Math.round(q.x-d.start.x),dy=Math.round(q.y-d.start.y),S=design.screen,f=d.f;
+ if(d.mode==='move'){
+  if(!dx&&!dy&&!d.recorded)return;record();
+  w.x=Math.max(0,Math.min(Math.max(0,S.w-f.w),f.x+dx));w.y=Math.max(0,Math.min(Math.max(0,S.h-f.h-1),f.y+dy));return;
+ }
+ let x=f.x,y=f.y,cw=d.w,ch=d.h;
+ if(d.mode.includes('w')){x=Math.max(0,Math.min(f.x+f.w-16,f.x+dx));cw=d.w+(f.x-x);}
+ if(d.mode.includes('e'))cw=Math.max(14,Math.min(300,S.w-f.x-2,d.w+dx));
+ if(d.mode.includes('n')){y=Math.max(0,Math.min(f.y+f.h-4,f.y+dy));ch=d.h+(f.y-y);}
+ if(d.mode.includes('s'))ch=Math.max(2,Math.min(150,S.h-f.y-3,d.h+dy));
+ cw=Math.max(14,cw);ch=Math.max(2,ch);
+ if(cw===w.w&&ch===w.h&&x===(w.x??f.x)&&y===(w.y??f.y))return;record();
+ w.w=cw;w.h=ch;w.x=x;w.y=y;
+}
+function widgetResize(q){
+ const d=drag,o=d.obj,c=TD.sizeOf(d.win,design),dx=Math.round(q.x-d.start.x),dy=Math.round(q.y-d.start.y),r=d.r;
+ let l=r.x,t=r.y,rr=r.x+r.w,b=r.y+r.h;
+ if(d.mode.includes('w'))l=Math.max(0,Math.min(rr-1,r.x+dx));
+ if(d.mode.includes('e'))rr=Math.max(l+1,Math.min(c.w,r.x+r.w+dx));
+ if(d.mode.includes('n'))t=Math.max(0,Math.min(b-1,r.y+dy));
+ if(d.mode.includes('s'))b=Math.max(t+1,Math.min(c.h,r.y+r.h+dy));
+ const nx=d.ox<0?l-c.w:l,ny=d.oy<0?t-c.h:t,nw=rr-l,nh=b-t;
+ if(nx===o.x&&ny===o.y&&nw===o.w&&(!RESIZE_H.includes(o.type)||nh===o.h))return;record();
+ o.x=nx;o.y=ny;o.w=nw;if(RESIZE_H.includes(o.type))o.h=nh;
+}
 canvas.onpointerdown=e=>{
- if(e.button!==0)return;const p=point(e),edge=windowEdge(p);
- if(edge){selected=edge.win.id;paintMode=false;render();canvas.focus();drag={recorded:false,window:TD.beginWindowDrag(design,edge.win.id,edge.mode,point(e,true))};canvas.setPointerCapture(e.pointerId);e.preventDefault();return;}
+ if(e.button!==0)return;const p=point(e),q=point(e,true);
+ const grab=widgetEdge(q);
+ if(grab){drag={recorded:false,resize:true,obj:grab.obj,win:grab.win,mode:grab.mode,start:q,r:{...grab.r,x:grab.r.x-grab.f.cx,y:grab.r.y-grab.f.cy},ox:grab.obj.x,oy:grab.obj.y};canvas.setPointerCapture(e.pointerId);e.preventDefault();return;}
+ const edge=windowEdge(q);
+ if(edge){selected=edge.win.id;paintMode=false;render();canvas.focus();const f=TD.windowFrame(edge.win,design);drag={recorded:false,window:true,win:edge.win,mode:edge.mode,start:q,f,w:edge.win.w,h:edge.win.h};canvas.setPointerCapture(e.pointerId);e.preventDefault();return;}
  if(paintMode&&current().obj.type==='canvas'){drag={paint:true,recorded:false};paint(p);canvas.setPointerCapture(e.pointerId);return;}
  const l=hit(p);if(!l)return;if(l.obj.generated){pageViews.set(l.win.id,l.obj.goToPage);selected=l.win.id;paintMode=false;render();return;}
  selected=l.obj.id;render();canvas.focus();if(l.obj===l.win)return;
  drag={recorded:false,id:l.obj.id,start:p,x:l.obj.x,y:l.obj.y,isWin:false,f:l.f};canvas.setPointerCapture(e.pointerId);
 };
 canvas.onpointermove=e=>{
- if(!drag){const edge=windowEdge(point(e));canvas.style.cursor=edge?({'move':'move','resize-e':'ew-resize','resize-s':'ns-resize','resize-se':'nwse-resize'}[edge.mode]):paintMode?'crosshair':'default';return;}
- if(drag.window){const next=TD.updateWindowDrag(drag.window,point(e,true));if(!drag.recorded&&JSON.stringify(next)!==JSON.stringify(design)){snapshot();drag.recorded=true;}design=next;updateSoon();liveWindowFields();return;}
+ if(!drag){const q=point(e,true),g=widgetEdge(q)||windowEdge(q);canvas.style.cursor=g?CURSORS[g.mode]:paintMode?'crosshair':'default';return;}
+ if(drag.window){windowDrag(point(e,true));drawSoon();liveWindowFields();return;}
+ if(drag.resize){widgetResize(point(e,true));drawSoon();return;}
  const p=point(e);if(drag.paint){paint(p);return;}
  const {obj:o,win}=current(),c=TD.sizeOf(win,design),dx=p.x-drag.start.x,dy=p.y-drag.start.y;
- if(dx===0&&dy===0&&!drag.recorded)return;if(!drag.recorded){snapshot();drag.recorded=true;}
+ if(dx===0&&dy===0&&!drag.recorded)return;record();
  const r=TD.rect(o,win,design),startX=drag.x<0?c.w+drag.x:drag.x,startY=drag.y<0?c.h+drag.y:drag.y;
  const x=Math.max(0,Math.min(c.w-r.w,startX+dx)),y=Math.max(0,Math.min(c.h-r.h,startY+dy));
- o.x=drag.x<0?x-c.w:x;o.y=drag.y<0?y-c.h:y;updateSoon();
+ o.x=drag.x<0?x-c.w:x;o.y=drag.y<0?y-c.h:y;drawSoon();
 };
 canvas.onpointerup=e=>{
  if(!drag)return;
- if(drag.window){const result=TD.finishWindowDrag(drag.window,point(e,true),e.altKey);if(!drag.recorded&&JSON.stringify(result.design)!==JSON.stringify(design))snapshot();design=result.design;}
+ if(drag.window&&drag.mode==='move'&&e.altKey){record();drag.win.x=null;drag.win.y=null;}
  drag=null;render();
 };
-canvas.onpointercancel=()=>{drag=null;render();};
+canvas.onpointercancel=()=>{if(drag)render();drag=null;};
 $('#layers').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.target.click();}};
 $('#layers').onclick=e=>{const page=e.target.closest('[data-outline-page]');if(page){pageViews.set(page.dataset.pageWin,page.dataset.outlinePage);selected=page.dataset.pageWin;paintMode=false;render();return;}const l=e.target.closest('[data-id]');if(l){selected=l.dataset.id;paintMode=false;render();}};
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));renderInspector();});
@@ -246,7 +297,7 @@ $('#modal').addEventListener('cancel',e=>{if(!modalMayClose())e.preventDefault()
 $('#modal').addEventListener('close',()=>{$('#modalBody').onclick=null;modalGuard=null;});
 $('#issuesButton').onclick=()=>$('#issues').hidden=!$('#issues').hidden;
 $('#expandCode').onclick=()=>window.BuilderLayout?.expandCode();
-$('#help').onclick=()=>openModal('An app builder for small computers','<p>Design TinyDesk MicroPython apps in character cells. Add a window, drag in components, and use the inspector to edit cell coordinates, colors, and events.</p><p><b>Canvas painting:</b> select a canvas, enable Paint cells, set brush text and colors, then click or drag. Use a single character to fill the whole canvas.</p><p><b>Keyboard:</b> select a component, then use arrow keys to move it. Shift moves five cells. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redoes. Delete removes a selected widget.</p><p><b>Panels:</b> drag the inner-edge separators to resize; double-click to reset. Focus a separator and use arrows (16 px), or Shift+arrows (64 px). Ctrl+Alt+1, 2, and 3 collapse or reopen Components/Outline, Inspector, and Generated Python. The split between Components and Outline also resizes.</p><p><b>Window:</b> drag the title bar to move it, or the right/bottom frame to resize in whole cells. Hold Alt when releasing a title-bar drag to center it; the Inspector also has a Center button.</p><p><b>Big text:</b> choose Big text in a canvas inspector, enter text, scale and width, and place it in the preview. The size is shown in cells.</p><p><b>Files:</b> Save JSON keeps the full design. Export Python includes a JSON design comment for re-import. Edits made to Python outside that comment are not recovered on import.</p><p>Run the export on TinyDesk with <span class="keyboard">py /root/Desktop/app.py</span>. Export is blocked by layout and resource errors. Overlaps are warnings. The preview models the supplied Dark and Classic themes; select the same theme on your device.</p><p>This app works offline from index.html. Browser storage is best effort; keep JSON copies. Handler logic and hardware interactions need testing on the board.</p>');
+$('#help').onclick=()=>openModal('An app builder for small computers','<p>Design TinyDesk MicroPython apps in character cells. Add a window, drag in components, and use the inspector to edit cell coordinates, colors, and events.</p><p><b>Canvas painting:</b> select a canvas, enable Paint cells, set brush text and colors, then click or drag. Use a single character to fill the whole canvas.</p><p><b>Keyboard:</b> select a component, then use arrow keys to move it. Shift moves five cells. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redoes. Delete removes a selected widget.</p><p><b>Panels:</b> drag the inner-edge separators to resize; double-click to reset. Focus a separator and use arrows (16 px), or Shift+arrows (64 px). Ctrl+Alt+1, 2, and 3 collapse or reopen Components/Outline, Inspector, and Generated Python. The split between Components and Outline also resizes.</p><p><b>Window:</b> drag the title bar to move it, or any edge or corner of the frame to resize in whole cells. A selected label, text box, progress bar, list or canvas resizes from its handles. Hold Alt when releasing a title-bar drag to center it; the Inspector also has a Center button.</p><p><b>Big text:</b> choose Big text in a canvas inspector, enter text, scale and width, and place it in the preview. The size is shown in cells.</p><p><b>Files:</b> Save JSON keeps the full design. Export Python includes a JSON design comment for re-import. Edits made to Python outside that comment are not recovered on import.</p><p>Run the export on TinyDesk with <span class="keyboard">py /root/Desktop/app.py</span>. Export is blocked by layout and resource errors. Overlaps are warnings. The preview models the supplied Dark and Classic themes; select the same theme on your device.</p><p>This app works offline from index.html. Browser storage is best effort; keep JSON copies. Handler logic and hardware interactions need testing on the board.</p>');
 document.addEventListener('focusin',e=>{if(e.target.closest('#inspector')&&e.target.dataset.key==='name'){const {obj}=current();renameStart={id:obj.id,from:obj.name};}});
 document.addEventListener('focusout',e=>{if(e.target.closest('#inspector')&&e.target.dataset.key==='name'&&renameStart){const {obj}=current();if(renameStart.id===obj.id&&renameStart.from!==obj.name&&TD.identifier(renameStart.from)&&TD.identifier(obj.name)){design.knownNames=[...new Set([...design.knownNames,renameStart.from])];if(Object.values(design.handlers).some(h=>new RegExp('\\b'+renameStart.from+'\\b').test(h.body))){pendingRename={from:renameStart.from,to:obj.name,id:obj.id};const offer=$('#renameOffer');if(offer)offer.outerHTML=renameOffer();}update();}renameStart=null;}if(e.target.closest('#inspector')||e.target.id==='projectName')historyGroup=null;});
 document.addEventListener('keydown',e=>{

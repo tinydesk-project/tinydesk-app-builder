@@ -13,6 +13,21 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / 'tests' / 'fixtures'
 SOURCE = ROOT / 'vendor/tinydesk/tdui.py'   # the pinned firmware (tools/sync_tinydesk.py)
 OLD_SOURCE = ROOT / 'tests/reference/tdui_0.2.0.py'
+TDAPP = ROOT / 'vendor/tinydesk/tdapp.py'   # the pinned app library generated apps import
+
+
+def paged(scope):
+    """Whether the app uses canvas pages: its own flag (embedded runtime) or tdapp's."""
+    return scope['_TD_PAGES'] if '_TD_PAGES' in scope else sys.modules['tdapp'].PAGED
+
+
+def install_tdapp():
+    """A fresh tdapp over the tdui just loaded (its state belongs to one app)."""
+    spec = importlib.util.spec_from_file_location('tdapp', TDAPP)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules['tdapp'] = module
+    spec.loader.exec_module(module)
+    return module
 
 # Expectations come from the supplied C table, independently of core.js.
 import re
@@ -151,6 +166,7 @@ def load(name, max_cells=None):
     api = importlib.util.module_from_spec(spec)
     sys.modules['tdui'] = api
     spec.loader.exec_module(api)
+    install_tdapp()
     calls = []
     api.run = lambda: calls.append(True)
     scope = {}
@@ -192,7 +208,7 @@ def check_paint(design, board, scope):
         for group in groups(win):
             for page, obj in enumerate(group):
                 cv = board.canvases[scope[obj['name']].id]
-                if scope['_TD_PAGES']:
+                if paged(scope):
                     assert cv['pictures'][page] == design_cells(obj), obj['name']
                 elif obj['visible'] and obj['page'] in (None, win['initialPage']):
                     assert cv['pictures'][0] == design_cells(obj), obj['name']
@@ -203,13 +219,13 @@ def check_hidden_canvases(design, board, scope, page):
         for group in groups(win):
             active = any(o['visible'] and o['page'] in (None, page) for o in group)
             for obj in group:
-                if scope['_TD_PAGES'] and active:
+                if paged(scope) and active:
                     continue
-                if not scope['_TD_PAGES'] and obj['visible'] and obj['page'] in (None, page):
+                if not paged(scope) and obj['visible'] and obj['page'] in (None, page):
                     continue
                 cv = board.canvases[scope[obj['name']].id]
                 assert (cv['x'], cv['y']) == (1000, 1000), obj['name']
-                if not scope['_TD_PAGES']:
+                if not paged(scope):
                     assert all(ch == ' ' for ch, fg, bg in cv['pictures'][0]), obj['name']
 
 
@@ -217,7 +233,7 @@ def switch(design, board, scope, page):
     start = len(board.requests)
     scope['show_page'](page)
     sent = board.requests[start:]
-    if scope['_TD_PAGES']:
+    if paged(scope):
         assert not any(r[0] in (11,12,21) for r in sent), 'cached pages must not repaint'
         win = design['windows'][0]
         ident = next(p['id'] for p in win['pages'] if p['name'] == page)
@@ -350,7 +366,7 @@ def verify():
     main, settings = s['main_canvas'], s['settings_canvas']
     target = s['canvas_page'](main, 'Settings')
     target.put(0,0,'DYNAMIC',81,234)
-    if s['_TD_PAGES']:
+    if paged(s):
         assert main is settings is target
         cv = board.canvases[main.id]
         assert cv['show']==0 and cv['draw']==1

@@ -9,7 +9,7 @@ import tempfile
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools'))
 from app_package import build,inspect
-runtime=max((root.parent/'tinydesk').glob('build*/tdsim.exe'),key=lambda p:p.stat().st_mtime)
+runtime=__import__('runtime_path').tdsim()
 compiler=root.parent/'tinydesk/build-check-20261103/compiler/mpy_cross/mpy-cross.exe'
 project=json.loads((root/'examples/generated_fonts.json').read_text())
 source=subprocess.check_output(['node','-e',"const T=require('./core.js'),fs=require('fs');process.stdout.write(T.generate(T.parse(fs.readFileSync('examples/generated_fonts.json','utf8')),{bundle:true}));"],cwd=root,text=True)

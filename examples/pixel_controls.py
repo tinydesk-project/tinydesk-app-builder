@@ -4,122 +4,21 @@ import tdui
 if getattr(tdui, "MAX_CELLS", 2000) < 1280:
     raise OSError("Design needs 1280 canvas cells; update TinyDesk firmware.")
 
-_TD_PARK = 1000
-
-_TD_PAGES = hasattr(tdui.Canvas, "draw_to")
+try:
+    import tdapp
+except ImportError:
+    raise OSError("Update TinyDesk firmware: this app uses the tdapp library.")
+if tdapp.VERSION < (1, 0):
+    raise OSError("Update TinyDesk firmware for tdapp 1.0.")
+canvas_page = tdapp.canvas_page
 if not hasattr(tdui.Canvas, "bar"):
     raise OSError("Design needs TinyDesk with batch and pixel widgets.")
 if getattr(tdui, "MAX_PIXELS", 0) < 6144:
     raise OSError("Design needs 6144 pixel bytes.")
 
-class _TDNoBatch:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, kind, value, traceback):
-        return False
-
-_td_no_batch = _TDNoBatch()
-
-
-def _td_batch():
-    return tdui.batch() if hasattr(tdui, "batch") else _td_no_batch
-
-
-_td_canvas_groups = {}
-_td_window_groups = {}
-
-
-def _td_make_canvas(win, x, y, w, h, pages):
-    if _TD_PAGES:
-        cv = win.canvas(x, y, w, h, pages=pages)
-    else:
-        cv = win.canvas(x, y, w, h)
-    cv._td_parked = False
-    return cv
-
-
-def _td_alias_canvas(base, win, x, y, w, h):
-    if _TD_PAGES:
-        return base
-    return _td_make_canvas(win, x, y, w, h, 1)
-
-
-def _td_hide_canvas(cv, clear=False):
-    if clear:
-        cv.fill(0, 0, cv.width, cv.height, " ", -1, -1)
-    if not cv._td_parked:
-        cv.move(_TD_PARK, _TD_PARK)
-        cv._td_parked = True
-
-
-def _td_place_canvas(cv, x, y):
-    if cv._td_parked:
-        cv.move(x, y)
-        cv._td_parked = False
-
-
-def _td_select_canvas(cv, page):
-    # _PAGE supports draw and show together: one atomic request, not two.
-    cv.drawing = page
-    cv.showing = page
-    cv._req2(19, page, page, 0, 0, 0, 0, None)
-
-
-def _td_register_canvas(win, group, base, cv, own, page, x, y, paint, visible, mouse):
-    record = _td_canvas_groups.get(group)
-    if record is None:
-        record = [base, x, y, []]
-        _td_canvas_groups[group] = record
-        _td_window_groups.setdefault(win, []).append(record)
-    record[3].append((cv, own, page, paint, visible, mouse))
-    if _TD_PAGES:
-        cv.draw_to(page)
-        paint()
-
-
-def _td_show_canvases(win, name):
-    for base, x, y, entries in _td_window_groups.get(win, ()):
-        active = None
-        for entry in entries:
-            cv, own, page, paint, visible, mouse = entry
-            if not _TD_PAGES:
-                _td_hide_canvas(cv, True)
-            if visible and (own is None or own == name):
-                active = entry
-        if active is None:
-            if _TD_PAGES:
-                _td_hide_canvas(base)
-            continue
-        cv, own, page, paint, visible, mouse = active
-        _td_place_canvas(cv, x, y)
-        if _TD_PAGES:
-            if len(entries) > 1:
-                _td_select_canvas(cv, page)
-        else:
-            paint()
-        cv.on_mouse = mouse
-
-
-def canvas_page(cv, name):
-    # Use the returned canvas: aliases share an object only on newer firmware.
-    for base, x, y, entries in _td_canvas_groups.values():
-        found = False
-        for entry in entries:
-            if entry[0] is cv:
-                found = True
-                break
-        if found:
-            for target, own, page, paint, visible, mouse in entries:
-                if own is None or own == name:
-                    if _TD_PAGES:
-                        target.draw_to(page)
-                    return target
-    raise ValueError("unknown canvas page")
-
 # --- tdui-editor layout begin ---
 win = tdui.Window("Pixel controls", 64, 20, x=None, y=None, resizable=True)
-meter = _td_make_canvas(win, 0, 0, 64, 20, 1)
+meter = tdapp.make_canvas(win, 0, 0, 64, 20, 1)
 
 apply_button = None
 # --- tdui-editor layout end ---
@@ -128,7 +27,7 @@ apply_button = None
 
 
 def _td_paint_meter():
-    with _td_batch():
+    with tdapp.batch():
         meter.fill(0, 0, 64, 20, " ", -1, -1)
         meter.gradient(0, 0, 128, 40, [0, 0, 80], [0, 120, 255], across=False)
         meter.draw_text(4, 2, "PIXEL CONTROLS", 231, bg=tdui.CLEAR, scale=1, small=True)
@@ -173,14 +72,14 @@ _td_page_names_win = ["Main"]
 
 
 def _td_show_win(name):
-    with _td_batch():
+    with tdapp.batch():
         _td_apply_win(name)
 
 
 def _td_apply_win(name):
     if name not in _td_page_names_win:
         raise ValueError("unknown page")
-    _td_show_canvases(win, name)
+    tdapp.show_canvases(win, name)
 
 
 def show_page(name, window=None):
@@ -198,7 +97,7 @@ def apply_value(button):
 
 # Wire callbacks after their definitions.
 _td_image_0 = tdui.Image.load("/root/picture.ppm", w=32, h=32, key=None, dither=True)
-_td_register_canvas(win, 0, meter, meter, "Main", 0, 0, 0, _td_paint_meter, True, None)
+tdapp.register_canvas(win, 0, meter, meter, "Main", 0, 0, 0, _td_paint_meter, True, None)
 _td_show_win("Main")
 
 tdui.run()
@@ -232,4 +131,4 @@ tdui.run()
 # tdui-editor design 27/30: nitialPage":"main","tabs":{"enabled":false,"row":-1}}],"handlers
 # tdui-editor design 28/30: ":{"apply_value":{"args":"button","body":"meter.bar(4, 14, 80, 4
 # tdui-editor design 29/30: , 25, edge=120, radius=1)"}},"options":{"embedDesign":true,"keep
-# tdui-editor design 30/30: UnusedHandlers":false},"knownNames":[]}
+# tdui-editor design 30/30: UnusedHandlers":false,"embedRuntime":false},"knownNames":[]}

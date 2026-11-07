@@ -12,6 +12,8 @@
     const $=s=>document.querySelector(s),clamp=(v,min,max)=>Math.max(min,Math.min(Math.max(min,max),v));
     function save(){try{localStorage.setItem(key,JSON.stringify(state));}catch(e){}}
     function aria(id,value,max){const el=$('#'+id),min=Number(el.getAttribute('aria-valuemin'));max=Math.max(min,max);value=clamp(value,min,max);el.setAttribute('aria-valuenow',Math.round(value));el.setAttribute('aria-valuemax',Math.round(max));el.setAttribute('aria-valuetext',el.getAttribute('aria-disabled')==='true'?'Collapsed':Math.round(value)+' pixels');}
+    let applyFrame=0;   /* splitter drags: one layout a frame */
+    function applySoon(){if(!applyFrame)applyFrame=requestAnimationFrame(()=>{applyFrame=0;apply();});}
     function apply(){
         const small=window.innerWidth<900,width=main.clientWidth;
         let left=state.leftCollapsed?28:state.left,right=state.rightCollapsed?28:state.right;
@@ -60,7 +62,7 @@
             e.preventDefault();el.focus({preventScroll:true});drag={start:cfg.axis==='x'?e.clientX:e.clientY,value:Number(el.getAttribute('aria-valuenow'))};
             el.setPointerCapture(e.pointerId);document.body.classList.add('layout-dragging');document.body.style.cursor=cfg.axis==='x'?'col-resize':'row-resize';
         });
-        el.addEventListener('pointermove',e=>{if(!drag)return;state[cfg.key]=clamp(drag.value+((cfg.axis==='x'?e.clientX:e.clientY)-drag.start)*cfg.sign,Number(el.getAttribute('aria-valuemin')),Number(el.getAttribute('aria-valuemax')));apply();});
+        el.addEventListener('pointermove',e=>{if(!drag)return;state[cfg.key]=clamp(drag.value+((cfg.axis==='x'?e.clientX:e.clientY)-drag.start)*cfg.sign,Number(el.getAttribute('aria-valuemin')),Number(el.getAttribute('aria-valuemax')));applySoon();});
         const end=()=>{if(drag){drag=null;document.body.classList.remove('layout-dragging');document.body.style.cursor='';save();}};
         el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);el.addEventListener('lostpointercapture',end);
         el.addEventListener('dblclick',()=>{state[cfg.key]=defaults[cfg.key];apply();save();});

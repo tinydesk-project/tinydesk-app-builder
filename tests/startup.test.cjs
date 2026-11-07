@@ -3,7 +3,7 @@ const d=TD.initial(),w=d.windows[0];
 w.pages.push({id:'welcome',name:'Welcome'});
 d.startup={mode:'custom',page:'welcome',durationMs:2500,image:''};
 assert.deepEqual(TD.validate(d).errors,[]);
-let source=TD.generate(d);
+let source=TD.generate(d,{embedRuntime:true});
 assert(source.includes('_td_preparing = True\nwith tdui.batch()'));
 assert(source.indexOf('win.minimize()')<source.indexOf('_td_show_win("Welcome")'));
 assert(source.indexOf('_td_show_win("Welcome")')<source.indexOf('_td_preparing = False\nwith _td_batch():\n    win.focus()'));

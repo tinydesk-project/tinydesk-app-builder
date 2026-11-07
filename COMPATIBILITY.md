@@ -11,8 +11,19 @@ depends on a few contracts, each with its own number.
 | Application | the app's own SemVer | your design and behaviour (Export options) |
 | TDAPP package | 1 | the container and its checked-file manifest |
 | tdui API | 1.0 | the TinyDesk drawing and event requests the app uses |
+| tdapp library | 1.0 | TinyDesk's app library an export imports (pages, elements, links); its names only grow within 1.x |
 | MicroPython bytecode | 6.3 | `.mpy` from MicroPython 1.29 |
 | Local helper protocol | 4 | the page and `tools/builder_helper.py` (RGB simulation frames) |
+
+## The tdapp library
+
+Exports call TinyDesk's frozen app library `tdapp` (TinyDesk 0.3 and later)
+instead of carrying their own runtime. TinyDesk pins its names like tdui's
+(`tdapp_contract.json`, `tdapp.VERSION`); App Builder pins a copy in
+`vendor/tinydesk/` and a test fails if an export uses a name that copy does
+not have. An export checks `tdapp.VERSION` at start and asks for a firmware
+update when it is older. For firmware before 0.3, Export options → **Copy
+the app runtime into the file** makes the self-contained export of 0.12.
 
 ## Which firmware runs which app
 

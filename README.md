@@ -88,7 +88,9 @@ optional RS-485 DE, station and timing. Supported elements then show **Register
 binding**: table/address, read/write direction, 16/32-bit signed/unsigned or
 float values, word order, scaling and event-driven writes. UART defaults to
 the same RTU register language, with JSON Lines and a custom Python codec
-option. Exports embed version 1 of the runtime; TDAPP stays self-contained.
+option. Exports use `tdapp.Link` from TinyDesk's app library (or carry
+their own copy with **Copy the app runtime into the file**, for firmware
+before 0.3).
 
 Simulation uses an isolated local register bank. Try the editable
 [register panel](examples/register_panel.json), then read the
@@ -446,7 +448,7 @@ show_page("Settings")
 
 `canvas_page` changes the drawing destination without changing the shown picture. Call it again for the shown page before drawing there, or call `show_page`, which resets both destinations. Mouse callbacks are routed to the shown layout page's handler. Dynamic drawing is retained in cached pictures until overwritten.
 
-Generated code detects `_TD_PAGES = hasattr(tdui.Canvas, "draw_to")`. Without it (TinyDesk 0.2.0), aliases become separate canvases. Page switches clear and park inactive canvases at `_TD_PARK = 1000`, restore active positions, and repaint their designs. Use the returned object from `canvas_page` so your handler also targets the correct separate canvas on older firmware. Dynamic edits on this fallback are replaced when the static design is repainted. The two paths consume the same cell budget.
+Generated code imports TinyDesk's app library `tdapp` (TinyDesk docs: *Python apps library*) for this (a copy of it with **Copy the app runtime into the file**), which detects `tdapp.PAGED = hasattr(tdui.Canvas, "draw_to")`. Without it (TinyDesk 0.2.0), aliases become separate canvases. Page switches clear and park inactive canvases at `tdapp.PARK` (1000), restore active positions, and repaint their designs. Use the returned object from `canvas_page` so your handler also targets the correct separate canvas on older firmware. Dynamic edits on this fallback are replaced when the static design is repainted. The two paths consume the same cell budget.
 
 All-pages and unshared canvases keep one picture. On newer firmware inactive canvases are parked without erasing the cached picture; a shared rectangle absent from a destination page must also be parked. Parking prevents blank canvas cells from covering another page, since TinyDesk draws canvases regardless of `.visible`.
 

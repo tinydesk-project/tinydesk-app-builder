@@ -1,20 +1,28 @@
 {
   "repository": "https://github.com/tinydesk-project/tinydesk",
-  "commit": "a45a53dcce4f405a8c216ebc0827bcfb357bb709",
-  "describe": "v0.2.0-18-ga45a53d",
-  "modified": false,
+  "commit": "7c55dba86bb20cbc4707af00f089e74c1ef745fe",
+  "describe": "v0.2.0-32-g7c55dba-dirty",
+  "modified": true,
   "files": {
     "tdui_contract.json": {
       "from": "ports/common/python/tdui_contract.json",
-      "sha256": "e48af7754ceb4dce826c37794af563ff31dcaf81f5696ce64f328ac6634678dc"
+      "sha256": "e9064dc7ee1dd4941412913e9bb048be932d346d8058a114d178462e12237f83"
     },
     "tdui.py": {
       "from": "ports/common/python/modules/tdui.py",
       "sha256": "4aadcddc2c05176d1d9ced7be1f1cc604cb72a9415fed96b74c7f9c3c2c620aa"
     },
+    "tdapp_contract.json": {
+      "from": "ports/common/python/tdapp_contract.json",
+      "sha256": "25c322dfe2174d61d279dbb9007db22beb3f30494495cd5abe55c74649701152"
+    },
+    "tdapp.py": {
+      "from": "ports/common/python/modules/tdapp.py",
+      "sha256": "df65d2a310ca1e302d20204330256c3628e23babb645d3665ed802e483711c8a"
+    },
     "pyui.c": {
       "from": "apps/pyui.c",
-      "sha256": "2539b6dec589b5161cce6b0b27a9e25bc7a41ab5c35544d96fb02cb12cb40952"
+      "sha256": "aca889c2c75dc6f412e02f63887e1b482690d514496ade34c593217b0049e4c2"
     },
     "tdsh_ftp.c": {
       "from": "third_party/tdsh/ports/esp_idf/components/tdsh/src/tdsh_ftp.c",

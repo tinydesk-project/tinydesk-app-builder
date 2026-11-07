@@ -95,7 +95,7 @@ if(/tdui\.(msgbox|confirm|inputbox|menu)\s*\(/.test(h.body))warnings.push(n+': k
 for(const w of d.windows){for(const obj of [w,...w.widgets])for(const [event,fn] of Object.entries(obj.events)){if(!fn)continue;if(!Object.hasOwn(d.handlers,fn))error(obj.name+': missing handler '+fn);else if(d.handlers[fn].args.replace(/\s/g,'').split(',').filter(Boolean).length!==EVENTS[obj===w?'window':obj.type][event].split(',').length)error(fn+': handler parameters do not match '+event+'.');}for(const t of w.timers)if(!Object.hasOwn(d.handlers,t.fn)||d.handlers[t.fn].args.trim())error(w.name+': timer handler must exist and accept no parameters.');}
 for(const n of handlerUsage(d).unused)warnings.push('Unused handler: '+n+'.');for(const [n,h] of Object.entries(d.handlers))for(const ref of missingReferences(d,h))warnings.push(n+': references missing widget '+ref+'.');return {errors:[...new Set(errors)],warnings:[...new Set(warnings)],usage:u};}
 function pagesOf(w){return w.pages||[{id:'main',name:'Main'}];}
-function optionsOf(d){return Object.assign({embedDesign:true,keepUnusedHandlers:false},d.options);}
+function optionsOf(d){return Object.assign({embedDesign:true,keepUnusedHandlers:false,embedRuntime:false},d.options);}
 function normalize(d){
     if(d.board===8000)d.board=32000;
     d.options=optionsOf(d);
@@ -193,7 +193,12 @@ function generate(input,overrides={}){
         if(typeof d.renderCache==='number')lines.push('if hasattr(tdui, "render_cache"):','    tdui.render_cache('+py(d.renderCache)+', '+(d.renderCache?'True':'False')+')');
     }
     const pictureBudget=pictureUsage(d);if(pictureBudget.retained>192||pictureBudget.visible>64)lines.push('if getattr(tdui, "MAX_PICTURES", 192) < '+pictureBudget.retained+' or getattr(tdui, "MAX_VISIBLE_PICTURES", 64) < '+pictureBudget.visible+':','    raise OSError("Update TinyDesk firmware for this many smooth surfaces.")');
-    const communicationRuntime=Communications.preamble(d);if(communicationRuntime)lines.push(communicationRuntime);
+    const library=!opts.embedRuntime;   // the tdapp library, frozen into TinyDesk 0.3 and later; embedRuntime: a copy for older firmware
+    if(library)lines.splice(lines.indexOf('_TD_PARK = 1000'),3,'try:','    import tdapp','except ImportError:',
+        '    raise OSError("Update TinyDesk firmware: this app uses the tdapp library.")',
+        'if tdapp.VERSION < '+TDAPP_NEEDS+':','    raise OSError("Update TinyDesk firmware for tdapp '+TDAPP_NEEDS.slice(1,-1).replace(', ','.')+'.")',
+        'canvas_page = tdapp.canvas_page');
+    const communicationRuntime=library?'':Communications.preamble(d);if(communicationRuntime)lines.push(communicationRuntime);
     const fontRef=p=>p.font?'_td_font_'+fonts.findIndex(f=>f.path===p.font.path):null;
     if(fonts.length)lines.push('if not hasattr(tdui, "Font"):', '    raise OSError("Update TinyDesk firmware for generated bitmap fonts.")');
     const modern=d.windows.some(w=>w.widgets.some(o=>o.paint.some(Pixels.isPixel)));
@@ -247,9 +252,12 @@ function generate(input,overrides={}){
             }else call(o.name+'.'+p.op,(p.op==='put'?[p.x,p.y,p.text,p.fg,p.bg]:[p.x,p.y,p.w,p.h,p.ch,p.fg,p.bg]).map(v=>arg(v)),indent);
         }
     }
-    lines.push('',...(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>p.name&&p.op!=='button')))?CANVAS_RUNTIME:CANVAS_RUNTIME.slice(CANVAS_RUNTIME.indexOf('class _TDNoBatch'))).trim().split('\n'),'','# --- tdui-editor layout begin ---');
-    if(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>['gauge','slider'].includes(p.op)))))lines.push(...CONTROL_RUNTIME.trim().split('\n'));
-    if(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>p.edgeSlices))))lines.push(...PANEL_RUNTIME.trim().split('\n'));
+    if(library)lines.push('','# --- tdui-editor layout begin ---');
+    else{
+        lines.push('',...(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>p.name&&p.op!=='button')))?CANVAS_RUNTIME:CANVAS_RUNTIME.slice(CANVAS_RUNTIME.indexOf('class _TDNoBatch'))).trim().split('\n'),'','# --- tdui-editor layout begin ---');
+        if(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>['gauge','slider'].includes(p.op)))))lines.push(...CONTROL_RUNTIME.trim().split('\n'));
+        if(d.windows.some(w=>w.widgets.some(o=>o.paint.some(p=>p.edgeSlices))))lines.push(...PANEL_RUNTIME.trim().split('\n'));
+    }
     const hiddenStartup=d.startup?.mode==='custom';
     if(hiddenStartup)lines.push('_td_preparing = True');
     for(const w of d.windows){
@@ -374,6 +382,7 @@ function generate(input,overrides={}){
     const linkSetup=Communications.setup(d,!!opts.simulation);
     if(linkSetup.length)lines.push('',...linkSetup,...readyCalls,'','try:','    tdui.run()','finally:','    _td_link.close()');
     else lines.push(...readyCalls,'','tdui.run()');
+    if(library)toLibrary(lines);
     if(opts.embedDesign){
         const chunks=[];let chunk='';
         for(const ch of JSON.stringify(d)){if((chunk+ch).length>64){chunks.push(chunk);chunk='';}chunk+=ch;}
@@ -383,6 +392,23 @@ function generate(input,overrides={}){
     const spaced=[];
     for(const line of lines){if(line.startsWith('def ')){let n=0;for(let i=spaced.length-1;i>=0&&spaced[i]==='';i--)n++;while(n++<2)spaced.push('');}spaced.push(line);}
     return spaced.join('\n')+'\n';
+}
+// The tdapp library (TinyDesk's frozen app library) has the runtime below
+// under public names: a library export calls them there instead of
+// carrying its own copy. TDAPP_NEEDS is the tdapp version these names need.
+const TDAPP_NEEDS='(1, 0)';
+const TDAPP_NAMES={_TD_PAGES:'tdapp.PAGED',_TD_PARK:'tdapp.PARK',_td_batch:'tdapp.batch',_TDField:'tdapp.Field',
+    _td_panel:'tdapp.panel',_td_gauge:'tdapp.gauge',_td_slider:'tdapp.slider',_td_control_mouse:'tdapp.control_mouse',
+    _td_make_canvas:'tdapp.make_canvas',_td_alias_canvas:'tdapp.alias_canvas',_td_hide_canvas:'tdapp.hide_canvas',
+    _td_place_canvas:'tdapp.place_canvas',_td_select_canvas:'tdapp.select_canvas',_td_register_canvas:'tdapp.register_canvas',
+    _td_show_canvases:'tdapp.show_canvases',_TDLink:'tdapp.Link'};
+const TDAPP_PATTERN=new RegExp('\\b('+Object.keys(TDAPP_NAMES).join('|')+')\\b','g');
+function toLibrary(lines){
+    // Generated lines only; handler bodies cannot use _td_ names (validate()).
+    for(let i=0;i<lines.length;i++){
+        if(lines[i]==='_td_preparing = True'||lines[i]==='_td_preparing = False'){lines[i]='tdapp.preparing('+(lines[i].endsWith('True')?'True':'False')+')';continue;}
+        lines[i]=lines[i].replace('with tdui.batch() if hasattr(tdui, "batch") else _td_no_batch:','with tdapp.batch():').replace(TDAPP_PATTERN,m=>TDAPP_NAMES[m]);
+    }
 }
 // Keep corner/edge pictures independent so an interior label does not replace
 // a whole native panel in the firmware's overlapping-picture cache.

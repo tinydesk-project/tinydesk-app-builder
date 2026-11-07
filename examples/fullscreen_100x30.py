@@ -4,119 +4,18 @@ import tdui
 if getattr(tdui, "MAX_CELLS", 2000) < 3000:
     raise OSError("Design needs 3000 canvas cells; update TinyDesk firmware.")
 
-_TD_PARK = 1000
-
-_TD_PAGES = hasattr(tdui.Canvas, "draw_to")
-
-class _TDNoBatch:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, kind, value, traceback):
-        return False
-
-_td_no_batch = _TDNoBatch()
-
-
-def _td_batch():
-    return tdui.batch() if hasattr(tdui, "batch") else _td_no_batch
-
-
-_td_canvas_groups = {}
-_td_window_groups = {}
-
-
-def _td_make_canvas(win, x, y, w, h, pages):
-    if _TD_PAGES:
-        cv = win.canvas(x, y, w, h, pages=pages)
-    else:
-        cv = win.canvas(x, y, w, h)
-    cv._td_parked = False
-    return cv
-
-
-def _td_alias_canvas(base, win, x, y, w, h):
-    if _TD_PAGES:
-        return base
-    return _td_make_canvas(win, x, y, w, h, 1)
-
-
-def _td_hide_canvas(cv, clear=False):
-    if clear:
-        cv.fill(0, 0, cv.width, cv.height, " ", -1, -1)
-    if not cv._td_parked:
-        cv.move(_TD_PARK, _TD_PARK)
-        cv._td_parked = True
-
-
-def _td_place_canvas(cv, x, y):
-    if cv._td_parked:
-        cv.move(x, y)
-        cv._td_parked = False
-
-
-def _td_select_canvas(cv, page):
-    # _PAGE supports draw and show together: one atomic request, not two.
-    cv.drawing = page
-    cv.showing = page
-    cv._req2(19, page, page, 0, 0, 0, 0, None)
-
-
-def _td_register_canvas(win, group, base, cv, own, page, x, y, paint, visible, mouse):
-    record = _td_canvas_groups.get(group)
-    if record is None:
-        record = [base, x, y, []]
-        _td_canvas_groups[group] = record
-        _td_window_groups.setdefault(win, []).append(record)
-    record[3].append((cv, own, page, paint, visible, mouse))
-    if _TD_PAGES:
-        cv.draw_to(page)
-        paint()
-
-
-def _td_show_canvases(win, name):
-    for base, x, y, entries in _td_window_groups.get(win, ()):
-        active = None
-        for entry in entries:
-            cv, own, page, paint, visible, mouse = entry
-            if not _TD_PAGES:
-                _td_hide_canvas(cv, True)
-            if visible and (own is None or own == name):
-                active = entry
-        if active is None:
-            if _TD_PAGES:
-                _td_hide_canvas(base)
-            continue
-        cv, own, page, paint, visible, mouse = active
-        _td_place_canvas(cv, x, y)
-        if _TD_PAGES:
-            if len(entries) > 1:
-                _td_select_canvas(cv, page)
-        else:
-            paint()
-        cv.on_mouse = mouse
-
-
-def canvas_page(cv, name):
-    # Use the returned canvas: aliases share an object only on newer firmware.
-    for base, x, y, entries in _td_canvas_groups.values():
-        found = False
-        for entry in entries:
-            if entry[0] is cv:
-                found = True
-                break
-        if found:
-            for target, own, page, paint, visible, mouse in entries:
-                if own is None or own == name:
-                    if _TD_PAGES:
-                        target.draw_to(page)
-                    return target
-    raise ValueError("unknown canvas page")
+try:
+    import tdapp
+except ImportError:
+    raise OSError("Update TinyDesk firmware: this app uses the tdapp library.")
+if tdapp.VERSION < (1, 0):
+    raise OSError("Update TinyDesk firmware for tdapp 1.0.")
+canvas_page = tdapp.canvas_page
 
 # --- tdui-editor layout begin ---
 win = tdui.Window("Device monitor", 100, 30, x=None, y=None, resizable=True)
 win.fullscreen()
-display = _td_make_canvas(win, 0, 0, 100, 30, 1)
+display = tdapp.make_canvas(win, 0, 0, 100, 30, 1)
 
 # --- tdui-editor layout end ---
 
@@ -124,7 +23,7 @@ display = _td_make_canvas(win, 0, 0, 100, 30, 1)
 
 
 def _td_paint_display():
-    with _td_batch():
+    with tdapp.batch():
         display.fill(0, 0, 100, 30, " ", -1, -1)
         display.put(1, 1, "FULL SCREEN", 115, 234)
 
@@ -132,14 +31,14 @@ _td_page_names_win = ["Main"]
 
 
 def _td_show_win(name):
-    with _td_batch():
+    with tdapp.batch():
         _td_apply_win(name)
 
 
 def _td_apply_win(name):
     if name not in _td_page_names_win:
         raise ValueError("unknown page")
-    _td_show_canvases(win, name)
+    tdapp.show_canvases(win, name)
 
 
 def show_page(name, window=None):
@@ -151,20 +50,21 @@ def show_page(name, window=None):
 
 # Event handlers: keep these quick and nonblocking.
 # Wire callbacks after their definitions.
-_td_register_canvas(win, 0, display, display, "Main", 0, 0, 0, _td_paint_display, True, None)
+tdapp.register_canvas(win, 0, display, display, "Main", 0, 0, 0, _td_paint_display, True, None)
 _td_show_win("Main")
 
 tdui.run()
 
-# tdui-editor design 1/12: {"version":1,"name":"fullscreen","screen":{"w":100,"h":30},"boar
-# tdui-editor design 2/12: d":32000,"theme":"dark","windows":[{"id":"window_1","name":"win"
-# tdui-editor design 3/12: ,"title":"Device monitor","w":100,"h":30,"x":null,"y":null,"resi
-# tdui-editor design 4/12: zable":true,"fullscreen":true,"events":{},"timers":[],"widgets":
-# tdui-editor design 5/12: [{"id":"display","type":"canvas","name":"display","x":0,"y":0,"w
-# tdui-editor design 6/12: ":100,"h":30,"text":"","checked":false,"secret":false,"value":65
-# tdui-editor design 7/12: ,"fg":-1,"bg":-1,"visible":true,"events":{},"page":"main","goToP
-# tdui-editor design 8/12: age":null,"items":["First item","Second item","Third item"],"pai
-# tdui-editor design 9/12: nt":[{"op":"put","x":1,"y":1,"text":"FULL SCREEN","fg":115,"bg":
-# tdui-editor design 10/12: 234}]}],"pages":[{"id":"main","name":"Main"}],"initialPage":"mai
-# tdui-editor design 11/12: n","tabs":{"enabled":false,"row":-1}}],"handlers":{},"options":{
-# tdui-editor design 12/12: "embedDesign":true,"keepUnusedHandlers":false},"knownNames":[]}
+# tdui-editor design 1/13: {"version":1,"name":"fullscreen","screen":{"w":100,"h":30},"boar
+# tdui-editor design 2/13: d":32000,"theme":"dark","windows":[{"id":"window_1","name":"win"
+# tdui-editor design 3/13: ,"title":"Device monitor","w":100,"h":30,"x":null,"y":null,"resi
+# tdui-editor design 4/13: zable":true,"fullscreen":true,"events":{},"timers":[],"widgets":
+# tdui-editor design 5/13: [{"id":"display","type":"canvas","name":"display","x":0,"y":0,"w
+# tdui-editor design 6/13: ":100,"h":30,"text":"","checked":false,"secret":false,"value":65
+# tdui-editor design 7/13: ,"fg":-1,"bg":-1,"visible":true,"events":{},"page":"main","goToP
+# tdui-editor design 8/13: age":null,"items":["First item","Second item","Third item"],"pai
+# tdui-editor design 9/13: nt":[{"op":"put","x":1,"y":1,"text":"FULL SCREEN","fg":115,"bg":
+# tdui-editor design 10/13: 234}]}],"pages":[{"id":"main","name":"Main"}],"initialPage":"mai
+# tdui-editor design 11/13: n","tabs":{"enabled":false,"row":-1}}],"handlers":{},"options":{
+# tdui-editor design 12/13: "embedDesign":true,"keepUnusedHandlers":false,"embedRuntime":fal
+# tdui-editor design 13/13: se},"knownNames":[]}

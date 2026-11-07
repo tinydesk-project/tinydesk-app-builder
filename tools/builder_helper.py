@@ -158,7 +158,10 @@ def main():
     executable='tdsim.exe' if __import__('os').name=='nt' else 'tdsim'
     # A stale build/tdsim may predate interactive mode. Prefer the newest
     # available host build instead of silently selecting an older binary.
-    choices=list((ROOT.parent/'tinydesk').glob('build*/'+executable))
+    # Apps import TinyDesk's tdapp library (0.3 and later): TDSIM, else the newest
+    # build of a checkout beside App Builder, tinydesk-ux before tinydesk.
+    choices=[p for repo in ('tinydesk-ux','tinydesk') for p in (ROOT.parent/repo).glob('build*/'+executable)]
+    if __import__('os').environ.get('TDSIM'):choices=[Path(__import__('os').environ['TDSIM'])]
     runtime=max(choices,key=lambda p:p.stat().st_mtime) if choices else Path(shutil.which('tdsim') or ROOT.parent/'tinydesk/build'/executable)
     parser.add_argument('--runtime',type=Path,default=runtime)
     parser.add_argument('--port',type=int,default=8773)
