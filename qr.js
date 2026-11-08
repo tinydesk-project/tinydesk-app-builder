@@ -5,7 +5,7 @@
  * of a few kilobytes; the picture element loads it scaled by a whole number
  * to its cell box, so every module stays sharp and a device decodes almost
  * nothing. apply() makes a picture element from a QR text; matrix() is the
- * encoder (the same algorithm as the original Melter HMI's).
+ * encoder, checked module for module against an independent one.
  */
 (function(root){
 'use strict';

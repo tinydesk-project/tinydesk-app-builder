@@ -42,7 +42,7 @@ change between minor versions, but the apps it made keep running (see
   Inspector's **QR code** fields change the text and colors; keep the box
   square in pixels (on an 80 x 24 design, the width in cells twice the
   height). The encoder (`qr.js`) is checked against the QR standard's
-  format table and, module for module, against the original Melter HMI's
+  format table and, module for module, against an independent reference
   encoder (`tests/qr.test.cjs`).
 
 ## 0.11.0

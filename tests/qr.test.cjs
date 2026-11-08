@@ -1,9 +1,9 @@
 /* QR element checks: the format information against the QR standard's
- * table, the encoder against the original Melter HMI's Python encoder (when
- * the reference matrices are given), and the picture element apply() makes.
+ * table, the encoder against an independent reference encoder (when the
+ * reference matrices are given), and the picture element apply() makes.
  *
- * tests/reference/qr_reference.json holds that encoder's matrices for six
- * texts (versions 1 to 5).
+ * tests/reference/qr_reference.json holds that encoder's matrices for five
+ * texts (versions 1, 2, 4 and 5).
  */
 'use strict';
 const assert = require('node:assert');
