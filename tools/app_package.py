@@ -74,6 +74,21 @@ def _tdapp_run():
             names.append(name)
             if item['offset']<0 or item['size']<0 or item['offset']+item['size']>offset:
                 raise ValueError('Invalid TDAPP entry size')
+        folder=path.rsplit('/',1)[0]+'/.tdapp-'+digest(raw)[:16]
+        # A start after a checked one: the stamp says this package (its size
+        # and manifest) was verified and unpacked here; the files still have
+        # their sizes. Then nothing is hashed again, so apps start at once.
+        stamp='%d %s'%(size,digest(raw))
+        fresh=False
+        try:
+            with open(folder+'/.verified') as s:
+                fresh=s.read()==stamp
+            for item in files:
+                if fresh and os.stat(folder+'/'+item['path'])[6]!=item['size']:
+                    fresh=False
+        except OSError:
+            fresh=False
+        for item in ([] if fresh else files):
             f.seek(item['offset'])
             check=hashlib.sha256()
             remaining=item['size']
@@ -84,14 +99,13 @@ def _tdapp_run():
                 check.update(block)
                 remaining-=len(block)
             if binascii.hexlify(check.digest()).decode()!=item['sha256']:
-                raise ValueError('TDAPP checksum mismatch: '+name)
-        folder=path.rsplit('/',1)[0]+'/.tdapp-'+digest(raw)[:16]
+                raise ValueError('TDAPP checksum mismatch: '+item['path'])
         try:
             os.mkdir(folder)
         except OSError:
             pass
         # Verify before touching files; use a revision-specific cache.
-        for item in files:
+        for item in ([] if fresh else files):
             valid=False
             try:
                 with open(folder+'/'+item['path'],'rb') as cached:
@@ -114,6 +128,12 @@ def _tdapp_run():
                     block=f.read(min(1024,remaining))
                     target.write(block)
                     remaining-=len(block)
+        if not fresh:
+            try:
+                with open(folder+'/.verified','w') as s:
+                    s.write(stamp)
+            except OSError:
+                pass   # a full disk: it checks again next time
     sys.path.insert(0,folder)
     os.chdir(folder)
     del manifest, files, raw, names

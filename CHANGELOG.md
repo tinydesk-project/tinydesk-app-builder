@@ -8,6 +8,10 @@ change between minor versions, but the apps it made keep running (see
 
 ## 0.13.0 (unreleased)
 
+* **Apps start faster:** an exported package checks its files once, then
+  leaves a stamp (`.verified`) in its unpack folder; later starts only compare
+  the sizes instead of hashing every asset again. A changed or damaged file
+  still gets the full check and is unpacked again. Export again to get it.
 * **Smoother, dependable resizing:** windows resize from every edge and
   corner, with half a cell of slack around the frame; labels, text boxes,
   progress bars, lists and canvases get resize handles (with a live size

@@ -40,6 +40,8 @@ with tempfile.TemporaryDirectory(prefix='tdapp-test-') as tmp:
     result=subprocess.run([str(runtime),'wait=500','key=Enter','wait=700','type=py -m 512 /root/test.tdapp\\r','wait=1700','shot'],cwd=tmp,capture_output=True,timeout=12)
     found=list(fs.glob('.tdapp-*/result.txt'))
     assert found and found[0].read_text()=='PACKAGE_OK',result.stdout.decode(errors='replace')
+    stamp=found[0].parent/'.verified'
+    assert stamp.exists(),'A checked start leaves its stamp, so the next start skips hashing'
     helper=found[0].parent/'helper.mpy';modified=helper.stat().st_mtime_ns
     subprocess.run([str(runtime),'wait=500','key=Enter','wait=700','type=py -m 512 /root/test.tdapp\\r','wait=1700'],cwd=tmp,capture_output=True,timeout=12,check=True)
     assert helper.stat().st_mtime_ns==modified,'Valid cache must not be rewritten on restart'
