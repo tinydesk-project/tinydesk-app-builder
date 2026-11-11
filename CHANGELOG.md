@@ -6,7 +6,7 @@ change between minor versions, but the apps it made keep running (see
 [COMPATIBILITY.md](COMPATIBILITY.md)). Each release's test record is in
 [VALIDATION.md](VALIDATION.md).
 
-## 0.13.0 (unreleased)
+## 0.13.0 (2026-11-11)
 
 * **Apps start faster:** an exported package checks its files once, then
   leaves a stamp (`.verified`) in its unpack folder; later starts only compare
